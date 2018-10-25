@@ -11,7 +11,7 @@ BIN_DIR=$(realpath ./bin)
 # folder within project dir and available
 # to mkdir all target
 ifeq (, $(BIN_DIR))
-    BIN_DIR=$(addprefix $(ROOT_DIR), '/bin')
+	BIN_DIR=$(addprefix $(ROOT_DIR), '/bin')
 endif
 
 # retrieve lib path
