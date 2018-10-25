@@ -6,8 +6,9 @@
 
 # Object files
 *.o
+!apidisk.o
+*.ojb
 *.ko
-*.obj
 *.elf
 
 # Linker output
