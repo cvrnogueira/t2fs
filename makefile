@@ -1,5 +1,6 @@
 # compiler 
-CC=gcc -c
+COMPILE=gcc -c
+LINK=gcc -o
 
 # project root dir
 ROOT_DIR:=${CURDIR}
@@ -17,6 +18,9 @@ endif
 # retrieve lib path
 LIB_DIR=$(realpath ./lib)
 
+# retrieve shell path
+SHELL_DIR=$(realpath ./exemplo)
+
 # retrieve include path
 INC_DIR=$(realpath ./include)
 
@@ -32,23 +36,30 @@ BIN=$(addprefix $(BIN_DIR)/, $(notdir $(SRC:.c=.o))) $(LIB_DIR)/apidisk.o
 # list static libs
 LIB=$(LIB_DIR)/libt2fs.a
 
-# compiler flags
-CFLAGS=-Wall -g -I$(INC_DIR)
+# lib compiler flags
+LC_FLAGS=-Wall -g -I$(INC_DIR)
+
+# shell compiler flags
+SC_FLAGS=-Wall -g -I$(INC_DIR) -L$(LIB_DIR) -lt2fs
 
 all: $(BIN)
 	ar -cvq $(LIB) $^
 
 $(BIN_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(BIN_DIR)
-	$(CC) -o $@ $< $(CFLAGS)
+	$(COMPILE) -o $@ $< $(LC_FLAGS)
 
 .PHONY: install
 .PHONY: debug
 .PHONY: clean
+.PHONY: shell
 
 install: $(LIB) $(INC_DIR)/t2fs.h
 	@install -t /usr/lib $(LIB)
 	@install -t /usr/include $(INC_DIR)/*
+
+shell: $(SHELL_DIR)/shell2.c
+	$(LINK) $@ $< $(SC_FLAGS)
 
 debug:
 	@echo 'SRC     ->' $(SRC)
