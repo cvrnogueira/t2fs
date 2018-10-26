@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <signal.h>
 #include "apidisk.h"
 #include "t2fs.h"
 
@@ -22,8 +23,13 @@
 /*-----------------------------------------------------------------------------
  * Definition
 -----------------------------------------------------------------------------*/
-typedef struct t2fs_superbloco superblock;
+typedef struct t2fs_superbloco Superblock;
 
+static void initialize(void) __attribute__((constructor));
+
+int initialize_superblock(void);
+int is_success(int code);
+int is_error(int code);
 int identify2 (char *name, int size);
 FILE2 create2 (char *filename);
 int delete2 (char *filename);
@@ -45,17 +51,57 @@ int ln2(char *linkname, char *filename);
 /*-----------------------------------------------------------------------------
  * Variables
 -----------------------------------------------------------------------------*/
-superblock sblock;
+Superblock superblock;
+
 BYTE buffer[SECTOR_SIZE];
+
+int initialized = 0;
 
 /*-----------------------------------------------------------------------------
  * Implementation
 -----------------------------------------------------------------------------*/
-int initialize_superblock(void);
+int initialize_superblock(void) {
+    int can_read = read_sector(0, buffer);
 
-int is_success(code);
+    if (is_error(can_read)) {
+        return ERROR;
+    }
 
-int is_error(code);
+    const char *buffer_char;
+
+    buffer_char = (char *) buffer;
+
+    strncpy(superblock.id, buffer_char, 4);
+
+    if(strncmp(superblock.id, FS_ID, 4) != SUCCESS) {
+        return ERROR;
+    }
+
+    superblock.version = *((WORD *) (buffer + 4));
+
+    if(superblock.version != FS_VERSION) {
+        return ERROR;
+    }
+
+    superblock.superblockSize    = *((WORD *)  (buffer + 6));
+    superblock.DiskSize          = *((DWORD *) (buffer + 8));
+    superblock.NofSectors        = *((DWORD *) (buffer + 12));
+    superblock.SectorsPerCluster = *((DWORD *) (buffer + 16));
+    superblock.pFATSectorStart   = *((DWORD *) (buffer + 20));
+    superblock.RootDirCluster    = *((DWORD *) (buffer + 24));
+    superblock.DataSectorStart   = *((DWORD *) (buffer + 28));
+
+    return SUCCESS;
+}
+
+static void initialize(void) {
+    int is_superblock_init = initialize_superblock();
+
+    if (is_error(is_superblock_init)) {
+        psignal(SIGTERM, "cannot initialize superblock from sector zero");
+        raise(SIGTERM);
+    }
+}
 
 int is_error(int code) {
     return code == ERROR;
@@ -63,10 +109,6 @@ int is_error(int code) {
 
 int is_success(int code) {
     return code == SUCCESS;
-}
-
-int initialize_superblock(void) {
-    return SUCCESS;
 }
 
 int identify2 (char *name, int size) {
@@ -107,17 +149,14 @@ int seek2 (FILE2 handle, DWORD offset) {
 }
 
 int mkdir2 (char *pathname) {
-    const char *szero;
-
-    if (is_error(read_sector(0, buffer))) {
-        return ERROR;
-    }
-
-    szero = (char *) buffer;
-
-    strncpy(sblock.id, szero, 4);
-
-    printf("superblock id -> %s\n", sblock.id);
+    printf("superblock id -> %s\n", superblock.id);
+    printf("superblock superblockSize -> %d\n", superblock.superblockSize);
+    printf("superblock DiskSize -> %d\n", superblock.DiskSize);
+    printf("superblock NofSectors -> %d\n", superblock.NofSectors);
+    printf("superblock SectorsPerCluster -> %d\n", superblock.SectorsPerCluster);
+    printf("superblock pFATSectorStart -> %d\n", superblock.pFATSectorStart);
+    printf("superblock RootDirCluster -> %d\n", superblock.RootDirCluster);
+    printf("superblock DataSectorStart -> %d\n", superblock.DataSectorStart);
 
     return SUCCESS;
 }

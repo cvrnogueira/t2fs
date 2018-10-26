@@ -53,12 +53,16 @@ $(BIN_DIR)/%.o: $(SRC_DIR)/%.c
 .PHONY: debug
 .PHONY: clean
 .PHONY: shell
+.PHONY: dev
 
 install: $(LIB) $(INC_DIR)/t2fs.h
 	@install -t /usr/lib $(LIB)
 	@install -t /usr/include $(INC_DIR)/*
 
 shell: $(SHELL_DIR)/shell2.c
+	$(LINK) $@ $< $(SC_FLAGS)
+
+dev: $(SHELL_DIR)/dev_test.c
 	$(LINK) $@ $< $(SC_FLAGS)
 
 debug:
