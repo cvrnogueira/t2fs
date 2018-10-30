@@ -304,12 +304,6 @@ int mkdir2 (char *pathname) {
     printf("superblock RootDirCluster -> %d\n", superblock.RootDirCluster);
     printf("superblock DataSectorStart -> %d\n", superblock.DataSectorStart);
 
-    char path[strlen(pathname) + 1], name[MAX_FILE_NAME_SIZE];
-    extractPath("/home/pablo/loves/cat", path, name);
-
-    printf("out path %s\n", path);
-    printf("out name %s\n", name);
-
     Path pp;
 
     pp = path_from_name("/home/pablo/loves/cat");
