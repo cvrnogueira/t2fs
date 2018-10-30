@@ -88,16 +88,14 @@ Path path_from_name(char *name) {
     // calculate name length
     const name_len = strlen(name) + 1;
 
-    // allocate head, tail and aux last_token character
+    // allocate head, tail character
     // arrays that will fill path struct later on
     char head[name_len]; 
     char tail[name_len]; 
-    char last_token[name_len];
 
     // empty string arrays
     head[0] = 0;
     tail[0] = 0;
-    last_token[0] = 0;
 
     // create an auxiliary array from name
     // acting as a buffer to strtok without
