@@ -33,4 +33,6 @@ int initialize_superblock(void);
 int is_error(int code);
 int is_success(int code);
 
+// Funções para ajudar a visualizar o fs
+void print_disk();
 void print_superblock();

@@ -174,12 +174,10 @@ int initialize_superblock(void) {
 
 static void initialize(void) {
     int is_superblock_init = initialize_superblock();
-
     if (is_error(is_superblock_init)) {
         psignal(SIGTERM, "cannot initialize superblock from sector zero");
         raise(SIGTERM);
     }
-
     initialize_curr_dir(&superblock);
 }
 
@@ -191,13 +189,52 @@ int is_success(int code) {
     return code == SUCCESS;
 }
 
+void read_cluster(int cluster, char *result) {
+    int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
+    int sector_index;
+    for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
+        read_sector(starting_sector + sector_index, &result[sector_index * SECTOR_SIZE]);
+    }
+}
+
+void print_descriptor(struct t2fs_record descriptor, int tab) {
+    int tabix;
+    for (tabix = 0; tabix < tab; tabix++)
+         printf("\t");
+    printf("%s = %u bytes (%u clusters)\n", descriptor.name, descriptor.bytesFileSize, descriptor.clustersFileSize);
+}
+
+void print_dir(int cluster, int tab) {
+   int cluster_size = SECTOR_SIZE * superblock.SectorsPerCluster;
+    char result[cluster_size];
+    struct t2fs_record descriptor;  
+    int index; // Descriptor index
+
+    read_cluster(cluster, result);
+
+    // 64 = tamanho da estrutura t2fs_record
+    for(index = 0; index < cluster_size / 64; index++) {
+        memcpy(&descriptor, &result[index * 64], sizeof(descriptor));
+	if (descriptor.TypeVal != TYPEVAL_INVALIDO)
+            print_descriptor(descriptor, tab);
+        if (descriptor.TypeVal == TYPEVAL_DIRETORIO && index > 1)
+            print_dir(descriptor.firstCluster, tab+1);
+    }
+}
+
+void print_disk() {
+    printf("\nDISK\n");
+    print_dir(superblock.RootDirCluster, 0);
+}
+
 void print_superblock() {
-    printf("superblock id -> %.4s\n", superblock.id);
-    printf("superblock superblockSize -> %d\n", superblock.superblockSize);
-    printf("superblock DiskSize -> %d\n", superblock.DiskSize);
-    printf("superblock NofSectors -> %d\n", superblock.NofSectors);
-    printf("superblock SectorsPerCluster -> %d\n", superblock.SectorsPerCluster);
-    printf("superblock pFATSectorStart -> %d\n", superblock.pFATSectorStart);
-    printf("superblock RootDirCluster -> %d\n", superblock.RootDirCluster);
-    printf("superblock DataSectorStart -> %d\n", superblock.DataSectorStart);
+    printf("\nSUPERBLOCK\n");
+    printf("- id -> %.4s\n", superblock.id);
+    printf("- superblockSize -> %d\n", superblock.superblockSize);
+    printf("- DiskSize -> %d\n", superblock.DiskSize);
+    printf("- NofSectors -> %d\n", superblock.NofSectors);
+    printf("- SectorsPerCluster -> %d\n", superblock.SectorsPerCluster);
+    printf("- pFATSectorStart -> %d\n", superblock.pFATSectorStart);
+    printf("- RootDirCluster -> %d\n", superblock.RootDirCluster);
+    printf("- DataSectorStart -> %d\n", superblock.DataSectorStart);
 }
