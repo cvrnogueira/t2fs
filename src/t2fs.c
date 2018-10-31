@@ -48,8 +48,45 @@ int seek2 (FILE2 handle, DWORD offset) {
 }
 
 int mkdir2 (char *pathname) {
-    print_superblock();
-    print_disk();
+    // extract path head and
+    Path path;
+    path = path_from_name(pathname);
+
+    // find first free fat physical sector entry
+    int p_free_sector = phys_fat_first_fit();
+
+    // convert phyisical sector entry to logical sector entry
+    int l_free_sector = fat_phys_to_log(p_free_sector);
+
+    // read from logical sector and fill up buffer
+    read_sector(l_free_sector, buffer);
+
+    // calculate cluster size from free phyisical sector entry and
+    // set buffer position to previous calculated cluster
+    BYTE free_cluster = buffer + p_free_sector * superblock.SectorsPerCluster;
+
+    // fill buffer area with END_OF_FILE marking last sector
+    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
+    // one cluster by specs
+    DWORD eof = END_OF_FILE;
+    memcpy(&free_cluster, &eof, superblock.SectorsPerCluster);
+
+    // write this sector back to disk in FAT
+    write_sector(l_free_sector, buffer);
+
+    // create current directory (head from path_from_name func)
+    Record dir;
+    dir.TypeVal = TYPEVAL_DIRETORIO;
+    strcpy(dir.name, path.head);
+    dir.bytesFileSize = phys_cluster_size();
+    dir.firstCluster = p_free_sector;
+
+    // TODO: 
+    // - write directory to data sector
+    // - create . and .. directories and write to data sector
+    // - update parent directory
+    // - missing '/' (root) checks
+
     return SUCCESS;
 }
 

@@ -14,6 +14,8 @@
 
 typedef struct t2fs_superbloco Superblock;
 
+typedef struct t2fs_record Record;
+
 Superblock superblock;
 DWORD curr_dir;
 BYTE buffer[SECTOR_SIZE];
@@ -25,7 +27,11 @@ typedef struct {
 
 Path path_from_name(char *name);
 
-DWORD first_fit(void);
+DWORD phys_cluster_size(void);
+
+int fat_log_to_phys(int lsector);
+int fat_phys_to_log(int psector);
+DWORD phys_fat_first_fit(void);
 
 int initialize_curr_dir(Superblock *superblock);
 int initialize_superblock(void);

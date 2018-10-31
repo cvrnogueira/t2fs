@@ -49,8 +49,8 @@ Path path_from_name(char *name) {
     // eg.: 
     // name -> /home/aluno/sisop/t2fs 
     // ite(1): tail -> /home | head -> aluno
-    // ite(1): tail -> /home/aluno | head -> sisop
-    // ite(1): tail -> /home/aluno/sisop | head -> t2fs
+    // ite(2): tail -> /home/aluno | head -> sisop
+    // ite(3): tail -> /home/aluno/sisop | head -> t2fs
     do {
         
         if (token != NULL && strlen(head) >= 1) {
@@ -79,12 +79,39 @@ Path path_from_name(char *name) {
 }
 
 /**
- * finds first free entry in FAT.
+ * physical cluster size calculated by sector per cluster from superblock.
  * 
- * returns  - index of entry since first sector entry within FAT.
+ * returns  - physical cluster size.
+**/
+DWORD phys_cluster_size(void) {
+    return SECTOR_SIZE * superblock.SectorsPerCluster;
+}
+
+/**
+ * convert logical FAT sector entry to physical sector entry.
+ * 
+ * returns  - physical sector entry in FAT.
+**/
+int fat_log_to_phys(int lsector) {
+    return (lsector -1) * SECTOR_SIZE;
+}
+
+/**
+ * convert phyisical FAT sector entry to logical sector entry.
+ * 
+ * returns  - logical sector entry in FAT.
+**/
+int fat_phys_to_log(int psector) {
+    return (int)((double) psector / SECTOR_SIZE);
+}
+
+/**
+ * finds first free physical entry in FAT.
+ * 
+ * returns  - physical entry index since first sector in FAT.
  * on error - returns -1 if cant read fat partition or theres no free entry.
 **/
-DWORD first_fit(void) {
+DWORD phys_fat_first_fit(void) {
     int sector = 0;
 
     // loop through fat sectors until end of fat (data sector is reached)  
@@ -101,8 +128,11 @@ DWORD first_fit(void) {
 
         // a sector contains 64 entries made up of 4 bytes each
         while (entry < SECTOR_SIZE) {
+            // increment buffer by entry
+            const DWORD entry_pos = buffer + entry;
+
             // read current entry value
-            const DWORD entry_val = *((DWORD *) buffer + entry);
+            const DWORD entry_val = *(DWORD *) entry_pos;
 
             // check if current entry points to a free cluster (represented by value 0x00000000)
             if (entry_val == FREE_CLUSTER) {
@@ -113,7 +143,7 @@ DWORD first_fit(void) {
                 // (1 - 1) * 256 = 0
                 // eg.: sector = 2
                 // (2 - 1) * 256 = 256
-                const int cur_sector = (sector - 1) * SECTOR_SIZE;
+                const int cur_sector = fat_log_to_phys(sector);
                 
                 // since entry are made up by 4 bytes we must
                 // divide it by fat entry size (4 bytes) to calculate
