@@ -7,7 +7,7 @@
 #include "../include/apidisk.h"
 
 /**
- * called by gcc attributes before main execution and responsible for
+ * Called by gcc attributes before main execution and responsible for
  * global vars initialization
  * 
  * on error - sigkill.
@@ -30,7 +30,7 @@ static void initialize(void) {
 }
 
 /**
- * read superblock from sector 0 and initialize global vars
+ * Initialize curr_dir position to data sector after root sectors.
 **/
 int initialize_curr_dir(Superblock *superblock) {
     curr_dir = superblock->DataSectorStart + superblock->RootDirCluster * superblock->SectorsPerCluster;
@@ -38,7 +38,7 @@ int initialize_curr_dir(Superblock *superblock) {
 }
 
 /**
- * read superblock from sector zero
+ * Read superblock from sector zero
  * 
  * on error - return -1 if cant read superblock from sector zero
 **/
@@ -189,7 +189,7 @@ void path_from_name(char *name, Path *result) {
 }
 
 /**
- * physical cluster size calculated by sector per cluster from superblock.
+ * Physical cluster size calculated by sector per cluster from superblock.
  * 
  * returns  - physical cluster size.
 **/
@@ -198,7 +198,7 @@ DWORD phys_cluster_size(void) {
 }
 
 /**
- * convert logical FAT sector entry to physical sector entry.
+ * Convert logical FAT sector entry to physical sector entry.
  * 
  * returns  - physical sector entry in FAT.
 **/
@@ -207,7 +207,7 @@ int fat_log_to_phys(int lsector) {
 }
 
 /**
- * convert phyisical FAT sector entry to logical sector entry.
+ * Convert phyisical FAT sector entry to logical sector entry.
  * 
  * returns  - logical sector entry in FAT.
 **/
@@ -216,7 +216,7 @@ int fat_phys_to_log(int psector) {
 }
 
 /**
- * finds first free physical entry in FAT.
+ * Finds first free physical entry in FAT.
  * 
  * returns  - physical entry index since first sector in FAT.
  * on error - returns -1 if cant read fat partition or theres no free entry.
