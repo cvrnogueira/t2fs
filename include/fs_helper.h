@@ -11,6 +11,7 @@
 #define BAD_SECTOR 0xFFFFFFFE
 #define END_OF_FILE 0xFFFFFFFF
 #define FAT_ENTRY_SIZE 4
+#define FILE_NAME_SIZE 52
 
 typedef struct t2fs_superbloco Superblock;
 
@@ -21,11 +22,11 @@ DWORD curr_dir;
 BYTE buffer[SECTOR_SIZE];
 
 typedef struct {
-  char *head;
-  char *tail;
+	char *head;
+	char *tail;
 } Path;
 
-Path path_from_name(char *name);
+void path_from_name(char *name, Path *result);
 
 DWORD phys_cluster_size(void);
 

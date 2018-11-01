@@ -6,10 +6,86 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
+/**
+ * called by gcc attributes before main execution and responsible for
+ * global vars initialization
+ * 
+ * on error - sigkill.
+**/
 static void initialize(void) __attribute__((constructor));
+static void initialize(void) {
+    // initialize superblock and store function exit code
+    int is_superblock_init = initialize_superblock();
+
+    // if cannot initialize superblock then kill program by sending
+    // a sigkill
+    if (is_error(is_superblock_init)) {
+        psignal(SIGTERM, "cannot initialize superblock from sector zero");
+        raise(SIGTERM);
+    }
+
+    // initialize current directory poiting to data dir after root
+    // based on superblock structure
+    initialize_curr_dir(&superblock);
+}
 
 /**
- * Splits path name into head and tail parts.
+ * read superblock from sector 0 and initialize global vars
+**/
+int initialize_curr_dir(Superblock *superblock) {
+    curr_dir = superblock->DataSectorStart + superblock->RootDirCluster * superblock->SectorsPerCluster;
+    return SUCCESS;
+}
+
+/**
+ * read superblock from sector zero
+ * 
+ * on error - return -1 if cant read superblock from sector zero
+**/
+int initialize_superblock(void) {
+    // read first logical sector from disk
+    int can_read = read_sector(0, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (is_error(can_read)) {
+        return ERROR;
+    }
+
+    // aux buffer to extract fs id
+    const char *buffer_char;
+    buffer_char = (char *) buffer;
+
+    // fill fs id
+    strncpy(superblock.id, buffer_char, 4);
+
+    // test fs id
+    if(strncmp(superblock.id, FS_ID, 4) != SUCCESS) {
+        return ERROR;
+    }
+
+    // fill fs version
+    superblock.version = *((WORD *) (buffer + 4));
+
+    // test fs version
+    if(superblock.version != FS_VERSION) {
+        return ERROR;
+    }
+
+    // fill fs parameters accordingly to specs
+    superblock.superblockSize    = *((WORD *)  (buffer + 6));
+    superblock.DiskSize          = *((DWORD *) (buffer + 8));
+    superblock.NofSectors        = *((DWORD *) (buffer + 12));
+    superblock.SectorsPerCluster = *((DWORD *) (buffer + 16));
+    superblock.pFATSectorStart   = *((DWORD *) (buffer + 20));
+    superblock.RootDirCluster    = *((DWORD *) (buffer + 24));
+    superblock.DataSectorStart   = *((DWORD *) (buffer + 28));
+
+    return SUCCESS;
+}
+
+/**
+ * Splits path name into head and tail parts storing
+ * it on result parameter.
  *
  * eg.: path consisting of the following name will be split as:
  *  
@@ -17,65 +93,99 @@ static void initialize(void) __attribute__((constructor));
  *  
  *  tail -> /home/aluno/sisop 
  *  head -> t2fs
- * 
- * returns  - Path struct with head and tail.
 **/
-Path path_from_name(char *name) {
+void path_from_name(char *name, Path *result) {
     // calculate name length
-    const int name_len = strlen(name) + 1;
+    const int name_len = strlen(name);
 
     // allocate head, tail character
     // arrays that will fill path struct later on
     char head[name_len]; 
-    char tail[name_len]; 
+    char tail[name_len];
 
     // empty string arrays
     head[0] = 0;
     tail[0] = 0;
 
+    // extract first character from name parameter
+    char fst_char_raw = *((BYTE*) name);
+
+    // check if first character of name parameter is a dot
+    int starts_with_dot = fst_char_raw == '.';
+
+    // remove dot from path if name parameter
+    // starts with it
+    char *sanitized_name = starts_with_dot ? name + 1 : name;
+
     // create an auxiliary array from name
     // acting as a buffer to strtok without
     // modifying external name variable passed
     // as reference to this function
-    char aux_token[strlen(name) + 1];
-    strcpy(aux_token, name);
+    char aux_token[strlen(sanitized_name)];
+    strcpy(aux_token, sanitized_name);
 
     // tokenize name splitting by "/"
     char *token = strtok(aux_token, "/");
 
-    // iterate through tokenizer concating current 
-    // head to tail until theres no slash character
-    // found in name path anymore
-    // eg.: 
-    // name -> /home/aluno/sisop/t2fs 
-    // ite(1): tail -> /home | head -> aluno
-    // ite(2): tail -> /home/aluno | head -> sisop
-    // ite(3): tail -> /home/aluno/sisop | head -> t2fs
-    do {
-        
-        if (token != NULL && strlen(head) >= 1) {
-            strcat(tail, head);
-        }
+    // check if token is equal to name parameter
+    int is_equal = token != NULL && strcmp(token, sanitized_name) == 0;
 
-        strcpy(head, token);
+    // ignore initial slash character from sanitized name
+    // and check if token is equal to it
+    int is_eq_ignore_slash = token != NULL && strcmp(token, (sanitized_name + 1)) == 0;
 
-        token = strtok(NULL, "/");
+    // extract first character from sanitized name
+    char fst_char_san = *((BYTE*) sanitized_name);
 
-        if (token != NULL) {
-            strcat(tail, "/");
-        }
+    // check if first character of sanitized name parameter 
+    // is a slash
+    int starts_with_slash = fst_char_san == '/';
 
-    } while (token != NULL);
+    // check if name parameter is relative path
+    // eg.:
+    // curr_dir -> /home/aluno
+    // name -> t2fs or /t2fs or ./t2fs
+    int is_relative =  starts_with_slash && is_eq_ignore_slash || is_equal;
 
-    // create path struct
-    Path path;
+    // if path is relative then set tail to ./ and head to path name
+    // eg.:
+    // curr_dir -> /home/aluno
+    // name -> t2fs or /t2fs or ./t2fs
+    // tail -> ./ | head -> t2fs
+    if (is_relative) {
+        strncpy(head, token, strlen(token) + 1);
+        strncat(tail, "./", 2);
+
+    } else {
+        // iterate through tokenizer concating current 
+        // head to tail until theres no slash character
+        // found in name path anymore
+        // eg.: 
+        // name -> /home/aluno/sisop/t2fs 
+        // ite(1): tail -> /home | head -> aluno
+        // ite(2): tail -> /home/aluno | head -> sisop
+        // ite(3): tail -> /home/aluno/sisop | head -> t2fs
+        do {
+            
+            if (token != NULL && strlen(head) >= 1) {
+                strncat(tail, head, strlen(head) + 1);
+            }
+
+            strncpy(head, token, strlen(token) + 1);
+
+            token = strtok(NULL, "/");
+
+            if (token != NULL) {
+                strncat(tail, "/", 1);
+            }
+
+        } while (token != NULL);
+    }
 
     // fill with tail and head generated
     // from tokenizer steps
-    path.tail = tail;
-    path.head = head;
-    
-    return path;
+    memcpy(result->head, head, strlen(head) + 1);
+    memcpy(result->tail, tail, strlen(tail) + 1);
 }
 
 /**
@@ -161,54 +271,6 @@ DWORD phys_fat_first_fit(void) {
 
     // unable to find a free cluster in fat
     return ERROR;
-}
-
-int initialize_curr_dir(Superblock *superblock) {
-    curr_dir = superblock->DataSectorStart + superblock->RootDirCluster * superblock->SectorsPerCluster;
-    return SUCCESS;
-}
-
-int initialize_superblock(void) {
-    int can_read = read_sector(0, buffer);
-
-    if (is_error(can_read)) {
-        return ERROR;
-    }
-
-    const char *buffer_char;
-
-    buffer_char = (char *) buffer;
-
-    strncpy(superblock.id, buffer_char, 4);
-
-    if(strncmp(superblock.id, FS_ID, 4) != SUCCESS) {
-        return ERROR;
-    }
-
-    superblock.version = *((WORD *) (buffer + 4));
-
-    if(superblock.version != FS_VERSION) {
-        return ERROR;
-    }
-
-    superblock.superblockSize    = *((WORD *)  (buffer + 6));
-    superblock.DiskSize          = *((DWORD *) (buffer + 8));
-    superblock.NofSectors        = *((DWORD *) (buffer + 12));
-    superblock.SectorsPerCluster = *((DWORD *) (buffer + 16));
-    superblock.pFATSectorStart   = *((DWORD *) (buffer + 20));
-    superblock.RootDirCluster    = *((DWORD *) (buffer + 24));
-    superblock.DataSectorStart   = *((DWORD *) (buffer + 28));
-
-    return SUCCESS;
-}
-
-static void initialize(void) {
-    int is_superblock_init = initialize_superblock();
-    if (is_error(is_superblock_init)) {
-        psignal(SIGTERM, "cannot initialize superblock from sector zero");
-        raise(SIGTERM);
-    }
-    initialize_curr_dir(&superblock);
 }
 
 int is_error(int code) {

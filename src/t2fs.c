@@ -48,9 +48,10 @@ int seek2 (FILE2 handle, DWORD offset) {
 }
 
 int mkdir2 (char *pathname) {
-    // extract path head and
-    Path path;
-    path = path_from_name(pathname);
+    // extract path head and tail
+    const Path path;
+    const Path *p_path = &path;
+    path_from_name(pathname, p_path);
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
@@ -77,8 +78,8 @@ int mkdir2 (char *pathname) {
     // create current directory (head from path_from_name func)
     Record dir;
     dir.TypeVal = TYPEVAL_DIRETORIO;
-    strcpy(dir.name, path.head);
     dir.bytesFileSize = phys_cluster_size();
+    strncpy(dir.name, path.head, FILE_NAME_SIZE);
     dir.firstCluster = p_free_sector;
 
     // TODO: 
