@@ -87,6 +87,21 @@ typedef struct {
 int lookup_descriptor_by_name(int cluster, char *name, Record *record);
 
 /**
+ * Lookup parent record descriptor by parent path.
+ *
+ * eg.: name -> /dir1/file1.txt
+ *
+ * parent -> /dir
+ * name   -> file1.txt
+ *
+ * param name    - parent path that this function will try to match (/dir in example above)
+ * param record  - if matched then this variable will store record found during lookup
+ *
+ * returns - TRUE if found FALSE otherwise.
+**/
+int lookup_parent_descriptor_by_name(char *name, Record *record)
+
+/**
  * Number of records per sector.
  *
  * returns - number of records per sector.

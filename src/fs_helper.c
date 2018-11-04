@@ -109,7 +109,7 @@ int records_per_sector(void) {
 }
 
 /**
- * Lookup Record descriptor by name in cluster.
+ * Lookup record descriptor by name in cluster.
  *
  * param cluster - logical cluster number
  * param name    - record name that this function will try to match
@@ -166,6 +166,84 @@ int lookup_descriptor_by_name(int cluster, char *name, Record *record) {
 }
 
 /**
+ * Lookup parent record descriptor by parent path.
+ *
+ * eg.: name -> /dir1/file1.txt
+ *
+ * parent -> /dir
+ * name   -> file1.txt
+ *
+ * param name    - parent path that this function will try to match (/dir in example above)
+ * param record  - if matched then this variable will store record found during lookup
+ *
+ * returns - TRUE if found FALSE otherwise.
+**/
+int lookup_parent_descriptor_by_name(char *name, Record *record) {
+    // calculate name length just one time to 
+    // reuse it later
+    int name_len = strlen(name) + 1;
+
+    // create an auxiliary array from name
+    // acting as a buffer to strtok without
+    // modifying external name variable passed
+    // as reference to this function
+    char aux_name[name_len];
+
+    strncpy(aux_name, name, name_len);
+
+    // if name equals to slash then it exists since 
+    // its on root path
+    if (strcmp(aux_name, "/") == 0) {
+        return TRUE;
+
+    // otherwise we must traverse all data sectors checking if path exists
+    } else {
+        // record type that will be reused while traversing
+        Record desc;
+
+        // calculate data cluster number from current directory
+        int cluster = curr_data_cluster();
+
+        // tokenize name splitting by "/"
+        char *token = strtok(aux_name, "/");
+
+        // flag storing if name exists on disk 
+        int exists = TRUE;
+
+        do {
+            if (token != NULL) {
+                // look for name in first cluster storing descriptor
+                // in record pointer
+                exists = exists && lookup_descriptor_by_name(cluster, token, &desc);
+
+                // if record could was found in cluster then select
+                // next cluster in chain from firstCluster variable
+                // and mark exists flag as true
+                if (exists) cluster = desc.firstCluster;
+
+                // otherwise it was not found and we
+                // should mark exists flag as false
+                else exists = FALSE;
+            }
+
+            // next token
+            token  = strtok(NULL, "/");
+
+        // while token is not null or exists flag is not false
+        // keep looping
+        } while(token != NULL && exists);
+
+        // if found store descriptor in record parameter
+        if (exists == TRUE) {
+            memcpy(record, &desc, RECORD_SIZE);
+        }
+
+        // return lookup result
+        return exists;
+    }
+}
+
+/**
  * Check wheter a given name exists.
  *
  * returns - physical cluster size.
@@ -194,42 +272,9 @@ int does_name_exists(char *name) {
         // record type that will be reused while traversing
         Record record;
 
-        // calculate data cluster number from current directory
-        int cluster = curr_data_cluster();
-
-        // tokenize name splitting by "/"
-        char *token = strtok(aux_name, "/");
-
-        // flag storing if name exists on disk 
-        int exists = TRUE;
-
-        do {
-            if (token != NULL) {
-                // look for name in first cluster storing descriptor
-                // in record pointer
-                exists = exists && lookup_descriptor_by_name(cluster, token, &record);
-
-                // if record could was found in cluster then select
-                // next cluster in chain from firstCluster variable
-                // and mark exists flag as true
-                if (exists) cluster = record.firstCluster;
-
-                // otherwise it was not found and we
-                // should mark exists flag as false
-                else exists = FALSE;
-            }
-
-            // next token
-            token  = strtok(NULL, "/");
-
-            // reset record pointer
-            record = (const Record) { 0 };
-
-        // while token is not null or exists flag is not false
-        // keep looping
-        } while(token != NULL && exists);
-
-        return exists;
+        // if parent exists then this function call will
+        // return TRUE otherwise false
+        return lookup_parent_descriptor_by_name(name, &record);
     }
 }
 

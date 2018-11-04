@@ -55,6 +55,8 @@ int mkdir2 (char *pathname) {
     // check if parent path exists
     int exists = does_name_exists(path->tail);
 
+    printf("exists %d\n", exists);
+
     // unable to locate parent path in disk
     // then return an error
     if (!exists) return ERROR;
