@@ -49,9 +49,15 @@ int seek2 (FILE2 handle, DWORD offset) {
 
 int mkdir2 (char *pathname) {
     // extract path head and tail
-    const Path path;
-    const Path *p_path = &path;
-    path_from_name(pathname, p_path);
+    Path *path = malloc(sizeof(Path));
+    path_from_name(pathname, path);
+
+    // check if parent path exists
+    int exists = does_name_exists(path->tail);
+
+    // unable to locate parent path in disk
+    // then return an error
+    if (!exists) return ERROR;
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
@@ -70,7 +76,7 @@ int mkdir2 (char *pathname) {
     // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
     // one cluster by specs
     DWORD eof = END_OF_FILE;
-    memcpy(&free_cluster, &eof, superblock.SectorsPerCluster);
+    memcpy(&free_cluster, &eof, FAT_ENTRY_SIZE);
 
     // write this sector back to disk in FAT
     write_sector(l_free_sector, buffer);
@@ -79,7 +85,7 @@ int mkdir2 (char *pathname) {
     Record dir;
     dir.TypeVal = TYPEVAL_DIRETORIO;
     dir.bytesFileSize = phys_cluster_size();
-    strncpy(dir.name, path.head, FILE_NAME_SIZE);
+    strncpy(dir.name, path->head, FILE_NAME_SIZE);
     dir.firstCluster = p_free_sector;
 
     // TODO: 
@@ -87,6 +93,11 @@ int mkdir2 (char *pathname) {
     // - create . and .. directories and write to data sector
     // - update parent directory
     // - missing '/' (root) checks
+
+    printf("waaaaaait for it\n");
+
+    // release resources for path
+    free(path);
 
     return SUCCESS;
 }

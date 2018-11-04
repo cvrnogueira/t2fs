@@ -19,7 +19,7 @@ static void initialize(void) {
 
     // if cannot initialize superblock then kill program by sending
     // a sigkill
-    if (is_error(is_superblock_init)) {
+    if (is_superblock_init == ERROR) {
         psignal(SIGTERM, "cannot initialize superblock from sector zero");
         raise(SIGTERM);
     }
@@ -47,9 +47,7 @@ int initialize_superblock(void) {
     int can_read = read_sector(0, buffer);
 
     // something bad happened, disk may be corrupted
-    if (is_error(can_read)) {
-        return ERROR;
-    }
+    if (can_read != SUCCESS) return ERROR;
 
     // aux buffer to extract fs id
     const char *buffer_char;
@@ -81,6 +79,158 @@ int initialize_superblock(void) {
     superblock.DataSectorStart   = *((DWORD *) (buffer + 28));
 
     return SUCCESS;
+}
+
+/**
+ * Calculates logical data cluster based on current directory pointer.
+ *
+ * returns - logical data cluster based on current directory.
+**/
+int curr_data_cluster(void) {
+    return (curr_dir - superblock.DataSectorStart) / superblock.SectorsPerCluster;
+}
+
+/**
+ * Converts a logical cluster number to sector number in data section.
+ *
+ * returns - sector number.
+**/
+int cluster_to_log_sector(int cluster) {
+    return superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
+}
+
+/**
+ * Number of records per sector.
+ *
+ * returns - number of records per sector.
+**/
+int records_per_sector(void) {
+    return SECTOR_SIZE / RECORD_SIZE;
+}
+
+/**
+ * Lookup Record descriptor by name in cluster.
+ *
+ * param cluster - logical cluster number
+ * param name    - record name that this function will try to match
+ * param record  - if matched then this variable will store record found during lookup
+ *
+ * returns - TRUE if found FALSE otherwise.
+**/
+int lookup_descriptor_by_name(int cluster, char *name, Record *record) {
+    // convert cluster to sector
+    int sector = cluster_to_log_sector(cluster);
+
+    // calculate number of records that fits in sector
+    int nr_of_records = records_per_sector();
+
+    // max number of sectors from current sector to reach
+    // clusters end boundary
+    // since a cluster is usually formated as four sectors we
+    // add SectorsPerCluster variable to our current sector variable
+    // to calculate its cluster boundary
+    int cluster_boundary = sector + superblock.SectorsPerCluster;
+
+    // while in boundary
+    while(sector <= cluster_boundary) {
+        // record counter
+        int i = 0;
+
+        // read our cluster sectors
+        read_sector(sector, buffer);
+
+        // loop through records of current sector
+        while(i < nr_of_records) {
+            Record desc;
+
+            // read our i(th) record from current sector
+            memcpy(&desc, buffer + (RECORD_SIZE * i), RECORD_SIZE); 
+
+            // if record name equals to parameter name then we found our record
+            // also make sure this record is valid checking its typeval 
+            if (strcmp(desc.name, name) == 0 && desc.TypeVal != TYPEVAL_INVALIDO) {
+                
+                // store record and return true since we found it
+                memcpy(record, &desc, RECORD_SIZE);
+                return TRUE;
+            }
+
+            i++;
+        }
+
+        sector++;
+    }
+
+    // unable to find record in cluster
+    return FALSE;
+}
+
+/**
+ * Check wheter a given name exists.
+ *
+ * returns - physical cluster size.
+ * on error - returns -1 if name does not exists or 0 if it exists.
+**/
+int does_name_exists(char *name) {
+    // calculate name length just one time to 
+    // reuse it later
+    int name_len = strlen(name) + 1;
+
+    // create an auxiliary array from name
+    // acting as a buffer to strtok without
+    // modifying external name variable passed
+    // as reference to this function
+    char aux_name[name_len];
+
+    strncpy(aux_name, name, name_len);
+
+    // if name equals to slash then it exists since 
+    // its on root path
+    if (strcmp(aux_name, "/") == 0) {
+        return TRUE;
+
+    // otherwise we must traverse all data sectors checking if path exists
+    } else {
+        // record type that will be reused while traversing
+        Record record;
+
+        // calculate data cluster number from current directory
+        int cluster = curr_data_cluster();
+
+        // tokenize name splitting by "/"
+        char *token = strtok(aux_name, "/");
+
+        // flag storing if name exists on disk 
+        int exists = TRUE;
+
+        do {
+            if (token != NULL) {
+                // look for name in first cluster storing descriptor
+                // in record pointer
+                exists = exists && lookup_descriptor_by_name(cluster, token, &record);
+
+                // if record could was found in cluster then select
+                // next cluster in chain from firstCluster variable
+                // and mark exists flag as true
+                if (exists) cluster = record.firstCluster;
+
+                // otherwise it was not found and we
+                // should mark exists flag as false
+                else exists = FALSE;
+            }
+
+            // next token
+            token  = strtok(NULL, "/");
+
+            // reset record pointer
+            record = (const Record) { 0 };
+
+        // while token is not null or exists flag is not false
+        // keep looping
+        } while(token != NULL && exists);
+
+        return exists;
+    }
 }
 
 /**
@@ -145,7 +295,7 @@ void path_from_name(char *name, Path *result) {
     // eg.:
     // curr_dir -> /home/aluno
     // name -> t2fs or /t2fs or ./t2fs
-    int is_relative =  starts_with_slash && is_eq_ignore_slash || is_equal;
+    int is_relative =  (starts_with_slash && is_eq_ignore_slash) || is_equal;
 
     // if path is relative then set tail to ./ and head to path name
     // eg.:
@@ -184,8 +334,8 @@ void path_from_name(char *name, Path *result) {
 
     // fill with tail and head generated
     // from tokenizer steps
-    memcpy(result->head, head, strlen(head) + 1);
-    memcpy(result->tail, tail, strlen(tail) + 1);
+    strncpy(result->tail, tail, strlen(tail) + 1);
+    strncpy(result->head, head, strlen(head) + 1);
 }
 
 /**
@@ -234,15 +384,12 @@ DWORD phys_fat_first_fit(void) {
 
         // if we cannot read this sector for some reason
         // something bad happened to disk and we should return error
-        if (can_read == ERROR) return ERROR;
+        if (can_read != SUCCESS) return ERROR;
 
         // a sector contains 64 entries made up of 4 bytes each
         while (entry < SECTOR_SIZE) {
-            // increment buffer by entry
-            const DWORD entry_pos = buffer + entry;
-
             // read current entry value
-            const DWORD entry_val = *(DWORD *) entry_pos;
+            const DWORD entry_val = *(DWORD *) buffer + entry;
 
             // check if current entry points to a free cluster (represented by value 0x00000000)
             if (entry_val == FREE_CLUSTER) {
@@ -273,14 +420,6 @@ DWORD phys_fat_first_fit(void) {
     return ERROR;
 }
 
-int is_error(int code) {
-    return code == ERROR;
-}
-
-int is_success(int code) {
-    return code == SUCCESS;
-}
-
 void read_cluster(int cluster, char *result) {
     int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
     int sector_index;
@@ -306,9 +445,12 @@ void print_dir(int cluster, int tab) {
 
     // 64 = tamanho da estrutura t2fs_record
     for(index = 0; index < cluster_size / 64; index++) {
+        printf("iiiii %d\n", index);
+        printf("index %d\n", index * 64);
         memcpy(&descriptor, &result[index * 64], sizeof(descriptor));
 	if (descriptor.TypeVal != TYPEVAL_INVALIDO)
             print_descriptor(descriptor, tab);
+            printf("cluster within %d\n", cluster);
         if (descriptor.TypeVal == TYPEVAL_DIRETORIO && index > 1)
             print_dir(descriptor.firstCluster, tab+1);
     }
