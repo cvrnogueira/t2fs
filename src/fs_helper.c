@@ -547,11 +547,29 @@ DWORD phys_fat_first_fit(void) {
     return ERROR;
 }
 
-void read_cluster(int cluster, char *result) {
+/**
+ * Receives a cluster and a result buffer
+ *
+ * Saves the content of the cluster on the result buffer
+**/
+void read_cluster(int cluster, unsigned char *result) {
     int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
     int sector_index;
     for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
         read_sector(starting_sector + sector_index, &result[sector_index * SECTOR_SIZE]);
+    }
+}
+
+/**
+ * Receives a cluster and a content buffer
+ *
+ * Saves the content of the buffer on the cluster
+**/
+void write_on_cluster(int cluster, unsigned char *content) {
+    int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
+    int sector_index;
+    for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
+        write_sector(starting_sector + sector_index, &content[sector_index * SECTOR_SIZE]);
     }
 }
 

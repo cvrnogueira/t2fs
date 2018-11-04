@@ -207,6 +207,20 @@ int initialize_curr_dir(Superblock *superblock);
 **/
 int initialize_superblock(void);
 
+/**
+ * Receives a cluster and a result buffer
+ *
+ * Saves the content of the cluster on the result buffer
+**/
+void read_cluster(int cluster, unsigned char *result);
+
+/**
+ * Receives a cluster and a content buffer
+ *
+ * Saves the content of the buffer on the cluster
+**/
+void write_on_cluster(int cluster, unsigned char *content);
+
 // Funções para ajudar a visualizar o fs
 void print_disk();
 void print_superblock();

@@ -16,7 +16,87 @@ int identify2 (char *name, int size) {
 }
 
 FILE2 create2 (char *filename) {
-    return (0);
+    //print_disk();
+    
+    // extract path head and tail
+    Path *path = malloc(sizeof(Path));
+    path_from_name(filename, path);
+
+    // return error if parent path does not exists
+    if (!does_name_exists(path->tail))
+        return ERROR;
+
+    // get the descriptor for parent folder
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // find first free fat physical sector entry
+    int p_free_sector = phys_fat_first_fit();
+
+    // create the record for the new file
+    Record file;
+    file.TypeVal = TYPEVAL_REGULAR;
+    file.bytesFileSize = 0;
+    file.clustersFileSize = 1;
+    strncpy(file.name, path->head, FILE_NAME_SIZE);
+    file.firstCluster = p_free_sector;
+
+    // Here we insert the entry of the file on the parent directory
+    // buffer to read the content of parent dir cluster
+    unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(parent_dir.firstCluster, content);
+
+    int i;
+    // flag to check if a space to write was found
+    int able_to_write = FALSE;
+    Record tmp_record;
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        int position_on_cluster = i * sizeof(Record);
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &content[position_on_cluster], sizeof(Record));
+        // Just need to check for duplications if it isn't invalid
+        if (tmp_record.TypeVal != TYPEVAL_INVALIDO) {
+            // Return error if the file already exists
+            if (strcmp(tmp_record.name, file.name) == 0) {
+                return ERROR;
+            }
+        // If it's invalid = it's free (ie, we can write on it)
+        } else {
+            // copy the content of file to the actual position on cluster
+            memcpy(&content[position_on_cluster], &file, sizeof(Record));
+            // write the modified cluster (with the new file) 
+            write_on_cluster(parent_dir.firstCluster, content);
+            // doesn't need to iterate anymore
+            able_to_write = TRUE;
+            break;
+        }
+    }
+
+    // Directory is full
+    if (able_to_write == FALSE)
+        return ERROR;
+
+    // convert phyisical sector entry to logical sector entry
+    int l_free_sector = fat_phys_to_log(p_free_sector);
+
+    // read from logical sector and fill up buffer
+    read_sector(l_free_sector, buffer);
+
+    // calculate cluster size from free phyisical sector entry and
+    // set buffer position to previous calculated cluster
+    BYTE free_cluster = ((int) buffer) + p_free_sector * superblock.SectorsPerCluster;
+
+    // fill buffer area with END_OF_FILE marking last sector
+    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
+    // one cluster by specs
+    DWORD eof = END_OF_FILE;
+    memcpy(&free_cluster, &eof, FAT_ENTRY_SIZE);
+
+    // write this sector back to disk in FAT
+    write_sector(l_free_sector, buffer);
+    
+    //print_disk();
+    return (SUCCESS);
 }
 
 int delete2 (char *filename) {
