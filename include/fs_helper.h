@@ -84,7 +84,7 @@ typedef struct {
  *
  * returns - TRUE if found FALSE otherwise.
 **/
-int lookup_descriptor_by_name(int cluster, char *name, Record *record);
+int lookup_descriptor_by_name(DWORD cluster, char *name, Record *record);
 
 /**
  * Lookup parent record descriptor by parent path.
@@ -113,14 +113,36 @@ int records_per_sector(void);
  *
  * returns - logical data cluster based on current directory.
 **/
-int curr_data_cluster(void);
+DWORD curr_data_cluster(void);
+
+
+/**
+ * Lookup a record returning a contiguous logical position 
+ * of found record accumulating positions from previous
+ * sectors util a entry with a given type
+ * is found or end of cluster is reached
+ *
+ * e.g:
+ * parent_dir      -> /dir1 -> sector 149 
+ * child_record(0) -> .     -> sector 149 
+ * child_record(1) -> ..    -> sector 149
+ * child_record(2) -> dir2  -> sector 149
+ * child_record(3) -> dir3  -> sector 149
+ * child_record(4) -> this  -> sector 150
+ *
+ * param cluster - logical cluster number
+ * param type    - record type
+ *
+ * returns - contiguous record position in a cluster.
+**/
+DWORD lookup_cont_record_by_type(DWORD cluster, BYTE type);
 
 /**
  * Converts a logical cluster number to sector number in data section.
  *
  * returns - sector number.
 **/
-int cluster_to_log_sector(int cluster);
+DWORD cluster_to_log_sector(DWORD cluster);
 
 /**
  * Check wheter a given name exists.
@@ -155,14 +177,14 @@ DWORD phys_cluster_size(void);
  * 
  * returns  - physical sector entry in FAT.
 **/
-int fat_log_to_phys(int lsector);
+DWORD fat_log_to_phys(DWORD lsector);
 
 /**
  * Convert phyisical FAT sector entry to logical sector entry.
  * 
  * returns  - logical sector entry in FAT.
 **/
-int fat_phys_to_log(int psector);
+DWORD fat_phys_to_log(DWORD psector);
 
 /**
  * Finds first free physical entry in FAT.

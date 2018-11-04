@@ -47,22 +47,49 @@ int seek2 (FILE2 handle, DWORD offset) {
     return SUCCESS;
 }
 
+int unusedEntryDir(DWORD cluster){
+    DWORD entry = 0;
+    char candidate[MAX_FILE_NAME_SIZE];
+    int numOfSectors = 0;
+    while(numOfSectors < superblock.SectorsPerCluster){
+        if(read_sector((cluster*superblock.SectorsPerCluster + superblock.DataSectorStart + numOfSectors), buffer) != 0){
+            return -1;
+        }
+        while(entry <= SECTOR_SIZE - sizeof(Record)){
+            strncpy(candidate,(const char*)(buffer + entry + 1), MAX_FILE_NAME_SIZE);
+            entry = entry + sizeof(Record);
+            if(strcmp(candidate,"") == 0){
+                if((*(BYTE *)(buffer + entry - sizeof(Record))) ==  TYPEVAL_INVALIDO){
+                    return (numOfSectors*SECTOR_SIZE + entry - sizeof(Record))/sizeof(Record);
+                }
+            }
+        }
+        numOfSectors++;
+        entry = 0;
+    }
+    return -1;
+}
+
 int mkdir2 (char *pathname) {
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(pathname, path);
 
-    // check if parent path exists
-    int exists = does_name_exists(path->tail);
+    // make sure parent path exists and
+    // current name doesnt exists 
+    int exists = does_name_exists(path->tail) && !does_name_exists(path->head);
 
-    Record parent_dir;
-    lookup_parent_descriptor_by_name("/dir1", &parent_dir);
-
-    printf("parent_dir cluster %d\n", parent_dir.firstCluster);
-
-    // unable to locate parent path in disk
+    // unable to locate parent path in disk or
+    // current name exists in disk
     // then return an error
     if (!exists) return ERROR;
+
+    // find parent directory by tail
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // find free entry within parent cluster
+    DWORD free_entry = lookup_cont_record_by_type(parent_dir.firstCluster, TYPEVAL_INVALIDO);
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
@@ -98,8 +125,6 @@ int mkdir2 (char *pathname) {
     // - create . and .. directories and write to data sector
     // - update parent directory
     // - missing '/' (root) checks
-
-    printf("waaaaaait for it\n");
 
     // release resources for path
     free(path);

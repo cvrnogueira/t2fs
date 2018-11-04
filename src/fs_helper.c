@@ -86,7 +86,7 @@ int initialize_superblock(void) {
  *
  * returns - logical data cluster based on current directory.
 **/
-int curr_data_cluster(void) {
+DWORD curr_data_cluster(void) {
     return (curr_dir - superblock.DataSectorStart) / superblock.SectorsPerCluster;
 }
 
@@ -95,7 +95,7 @@ int curr_data_cluster(void) {
  *
  * returns - sector number.
 **/
-int cluster_to_log_sector(int cluster) {
+DWORD cluster_to_log_sector(DWORD cluster) {
     return superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
 }
 
@@ -117,7 +117,7 @@ int records_per_sector(void) {
  *
  * returns - TRUE if found FALSE otherwise.
 **/
-int lookup_descriptor_by_name(int cluster, char *name, Record *record) {
+int lookup_descriptor_by_name(DWORD cluster, char *name, Record *record) {
     // convert cluster to sector
     int sector = cluster_to_log_sector(cluster);
 
@@ -144,15 +144,97 @@ int lookup_descriptor_by_name(int cluster, char *name, Record *record) {
             Record desc;
 
             // read our i(th) record from current sector
-            memcpy(&desc, buffer + (RECORD_SIZE * i), RECORD_SIZE); 
+            memcpy(&desc, buffer + (RECORD_SIZE * i), RECORD_SIZE);
 
             // if record name equals to parameter name then we found our record
             // also make sure this record is valid checking its typeval 
+            // typeval_invalido means that this record is empty
             if (strcmp(desc.name, name) == 0 && desc.TypeVal != TYPEVAL_INVALIDO) {
                 
                 // store record and return true since we found it
                 memcpy(record, &desc, RECORD_SIZE);
                 return TRUE;
+            }
+
+            i++;
+        }
+
+        sector++;
+    }
+
+    // unable to find record in cluster
+    return FALSE;
+}
+
+/**
+ * Lookup a record returning a contiguous logical position 
+ * of found record accumulating positions from previous
+ * sectors util a entry with a given type
+ * is found or end of cluster is reached
+ *
+ * e.g:
+ * parent_dir      -> /dir1 -> sector 149 
+ * child_record(0) -> .     -> sector 149 
+ * child_record(1) -> ..    -> sector 149
+ * child_record(2) -> dir2  -> sector 149
+ * child_record(3) -> dir3  -> sector 149
+ * child_record(4) -> this  -> sector 150
+ *
+ * param cluster - logical cluster number
+ * param type    - record type
+ *
+ * returns - contiguous record position in a cluster.
+**/
+DWORD lookup_cont_record_by_type(DWORD cluster, BYTE type) {
+    // convert cluster to sector
+    DWORD sector = cluster_to_log_sector(cluster);
+
+    // calculate number of records that fits in sector
+    int nr_of_records = records_per_sector();
+
+    // max number of sectors from current sector to reach
+    // clusters end boundary
+    // since a cluster is usually formated as four sectors we
+    // add SectorsPerCluster variable to our current sector variable
+    // to calculate its cluster boundary
+    int cluster_boundary = sector + superblock.SectorsPerCluster;
+
+    // while in boundary
+    while(sector <= cluster_boundary) {
+        // record counter
+        int i = 0;
+
+        // read our cluster sectors
+        read_sector(sector, buffer);
+
+        // loop through records of current sector
+        while(i < nr_of_records) {
+            Record desc;
+
+            // read our i(th) record from current sector
+            memcpy(&desc, buffer + (RECORD_SIZE * i), RECORD_SIZE);
+
+            // if record name equals to parameter name then we found our record
+            // also make sure this record is valid checking its typeval 
+            // typeval_invalido means that this record is empty
+            if (desc.TypeVal == type) {
+
+                // find out which sector we are counting from a zero-based index
+                int curr_sector = (sector - cluster_boundary) + superblock.SectorsPerCluster;
+
+                // calculate continuous logical position of this record accumulating
+                // positions from previous sectors util a entry with a given condition
+                // is reached
+                // 
+                // e.g:
+                //
+                // curr_dir ->
+                // record(0) -> .    -> sector 1
+                // record(1) -> ..   -> sector 1
+                // record(2) -> dir2 -> sector 1
+                // record(3) -> dir3 -> sector 1
+                // record(4) -> this -> sector 2
+                return curr_sector * nr_of_records + i;
             }
 
             i++;
@@ -202,7 +284,7 @@ int lookup_parent_descriptor_by_name(char *name, Record *record) {
         Record desc;
 
         // calculate data cluster number from current directory
-        int cluster = curr_data_cluster();
+        DWORD cluster = curr_data_cluster();
 
         // tokenize name splitting by "/"
         char *token = strtok(aux_name, "/");
@@ -397,7 +479,7 @@ DWORD phys_cluster_size(void) {
  * 
  * returns  - physical sector entry in FAT.
 **/
-int fat_log_to_phys(int lsector) {
+DWORD fat_log_to_phys(DWORD lsector) {
     return (lsector -1) * SECTOR_SIZE;
 }
 
@@ -406,8 +488,8 @@ int fat_log_to_phys(int lsector) {
  * 
  * returns  - logical sector entry in FAT.
 **/
-int fat_phys_to_log(int psector) {
-    return (int)((double) psector / SECTOR_SIZE);
+DWORD fat_phys_to_log(DWORD psector) {
+    return (DWORD)((double) psector / SECTOR_SIZE);
 }
 
 /**
@@ -490,12 +572,9 @@ void print_dir(int cluster, int tab) {
 
     // 64 = tamanho da estrutura t2fs_record
     for(index = 0; index < cluster_size / 64; index++) {
-        printf("iiiii %d\n", index);
-        printf("index %d\n", index * 64);
         memcpy(&descriptor, &result[index * 64], sizeof(descriptor));
 	if (descriptor.TypeVal != TYPEVAL_INVALIDO)
             print_descriptor(descriptor, tab);
-            printf("cluster within %d\n", cluster);
         if (descriptor.TypeVal == TYPEVAL_DIRETORIO && index > 1)
             print_dir(descriptor.firstCluster, tab+1);
     }

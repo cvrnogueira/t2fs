@@ -7,7 +7,7 @@ int main() {
 	//char *pathname;
 	//pathname = malloc(100);
 
-	mkdir2("/dir12");
+	mkdir2("/dir2");
 
 	return 0;
 }
