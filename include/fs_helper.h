@@ -99,7 +99,7 @@ int lookup_descriptor_by_name(int cluster, char *name, Record *record);
  *
  * returns - TRUE if found FALSE otherwise.
 **/
-int lookup_parent_descriptor_by_name(char *name, Record *record)
+int lookup_parent_descriptor_by_name(char *name, Record *record);
 
 /**
  * Number of records per sector.

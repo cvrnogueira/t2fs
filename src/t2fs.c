@@ -55,7 +55,10 @@ int mkdir2 (char *pathname) {
     // check if parent path exists
     int exists = does_name_exists(path->tail);
 
-    printf("exists %d\n", exists);
+    Record parent_dir;
+    lookup_parent_descriptor_by_name("/dir1", &parent_dir);
+
+    printf("parent_dir cluster %d\n", parent_dir.firstCluster);
 
     // unable to locate parent path in disk
     // then return an error
