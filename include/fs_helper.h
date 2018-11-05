@@ -65,15 +65,19 @@ DWORD curr_dir;
 
 BYTE buffer[SECTOR_SIZE];
 
-Record opened_files[MAX_OPENED_FILES];
-
-int num_opened_files;
-
 typedef struct {
 	char head[MAX_PATH_SIZE];
 	char tail[MAX_PATH_SIZE];
 } Path;
 
+typedef struct {
+	int is_used;
+    Record  file;
+} OpenedFile;
+
+OpenedFile opened_files[MAX_OPENED_FILES];
+
+int num_opened_files;
 
 /***************************************************************************
 * functions

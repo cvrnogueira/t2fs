@@ -236,6 +236,17 @@ FILE2 open2 (char *filename) {
 }
 
 int close2 (FILE2 handle) {
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
+	//opened_files[handle].file = (Record) NULL;
+	opened_files[handle].is_used = FALSE;
+
+	num_opened_files--;
     return SUCCESS;
 }
 

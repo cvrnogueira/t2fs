@@ -600,12 +600,21 @@ int save_as_opened(Record* record) {
         return ERROR;
     }
 
-    // save the record of file in the actual position of opened_files
-    memcpy(&opened_files[num_opened_files], &record, sizeof(Record));
-    // increase the opened files counter
-    num_opened_files++;
-
-    return (num_opened_files-1);
+    // save the record of file in the first free position of opened_files
+    int i;
+    for (i = 0; i < MAX_OPENED_FILES; i++) {
+        if (opened_files[i].is_used == FALSE) {
+            // copy to the free position found
+            memcpy(&opened_files[i].file, &record, sizeof(Record));
+            // set the position as used
+            opened_files[i].is_used = TRUE;
+            // increase the opened files counter
+            num_opened_files++;
+            return i;
+        }
+    }
+    
+    return ERROR;
     
 }
 
