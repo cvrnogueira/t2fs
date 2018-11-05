@@ -209,7 +209,35 @@ int delete2 (char *filename) {
 }
 
 FILE2 open2 (char *filename) {
-    return (0);
+	// extract path head and tail
+    Path *path = malloc(sizeof(Path));
+    path_from_name(filename, path);
+
+    // return error if parent path does not exists
+    if (!does_name_exists(path->tail))
+        // path does not exists
+        return ERROR;
+
+    // get the descriptor for parent folder
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // find the to-be-deleted file inside of parent dir
+	Record file;
+	if (!lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &file))
+		// file does not exists
+		return ERROR;  
+
+	if (!(file.TypeVal == TYPEVAL_REGULAR || file.TypeVal == TYPEVAL_LINK))
+		// Is not a regular file or softlink
+		return ERROR;
+
+	// save the record of file in the actual position of opened_files
+    memcpy(&opened_files[num_opened_files], &file, sizeof(Record));
+    // increase the opened files counter
+    num_opened_files++;
+    
+    return (num_opened_files-1);
 }
 
 int close2 (FILE2 handle) {
