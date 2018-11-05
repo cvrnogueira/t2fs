@@ -169,7 +169,7 @@ int lookup_descriptor_by_name(DWORD cluster, char *name, Record *record) {
 /**
  * Lookup a record returning a contiguous logical position 
  * of found record accumulating positions from previous
- * sectors util a entry with a given type
+ * sectors util an entry with a given type
  * is found or end of cluster is reached
  *
  * e.g:
@@ -218,7 +218,7 @@ DWORD lookup_cont_record_by_type(DWORD cluster, BYTE type) {
             // also make sure this record is valid checking its typeval 
             // typeval_invalido means that this record is empty
             if (desc.TypeVal == type) {
-
+                
                 // find out which sector we are counting from a zero-based index
                 int curr_sector = (sector - cluster_boundary) + superblock.SectorsPerCluster;
 
@@ -489,7 +489,7 @@ DWORD fat_log_to_phys(DWORD lsector) {
  * returns  - logical sector entry in FAT.
 **/
 DWORD fat_phys_to_log(DWORD psector) {
-    return (DWORD)((double) psector / SECTOR_SIZE);
+    return superblock.pFATSectorStart + (DWORD)((double) psector / SECTOR_SIZE);
 }
 
 /**
@@ -500,23 +500,27 @@ DWORD fat_phys_to_log(DWORD psector) {
 **/
 DWORD phys_fat_first_fit(void) {
     int sector = 0;
-
-    // loop through fat sectors until end of fat (data sector is reached)  
+    
+    // loop through fat sectors until end of fat (data sector is reached)
     for (sector = superblock.pFATSectorStart; sector < superblock.DataSectorStart; sector++) {
         int entry = 0;
 
         // a sector has 256 bytes in total and will be read into
         // buffer global var
         const int can_read = read_sector(sector, buffer);
-
+        
         // if we cannot read this sector for some reason
         // something bad happened to disk and we should return error
-        if (can_read != SUCCESS) return ERROR;
-
+        if (can_read == ERROR) return ERROR;
+        
         // a sector contains 64 entries made up of 4 bytes each
         while (entry < SECTOR_SIZE) {
+        
+            // increment buffer by entry
+            const DWORD entry_pos = buffer + entry;
+
             // read current entry value
-            const DWORD entry_val = *(DWORD *) buffer + entry;
+            const DWORD entry_val = *(DWORD *) entry_pos;
 
             // check if current entry points to a free cluster (represented by value 0x00000000)
             if (entry_val == FREE_CLUSTER) {
@@ -528,7 +532,7 @@ DWORD phys_fat_first_fit(void) {
                 // eg.: sector = 2
                 // (2 - 1) * 256 = 256
                 const int cur_sector = fat_log_to_phys(sector);
-                
+
                 // since entry are made up by 4 bytes we must
                 // divide it by fat entry size (4 bytes) to calculate
                 // current entry index

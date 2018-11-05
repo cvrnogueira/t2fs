@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "checkout disk"
+
 echo "clear all compiled files"
 make clean
 

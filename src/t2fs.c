@@ -49,27 +49,33 @@ FILE2 create2 (char *filename) {
     read_cluster(parent_dir.firstCluster, content);
 
     int i;
+
     // flag to check if a space to write was found
     int able_to_write = FALSE;
+
     Record tmp_record;
     for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
-        int position_on_cluster = i * sizeof(Record);
+        int position_on_cluster = i * RECORD_SIZE;
+
         // Copy the current record do parent dir to tmp_record
-        memcpy(&tmp_record, &content[position_on_cluster], sizeof(Record));
+        memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
+
         // Just need to check for duplications if it isn't invalid
         if (tmp_record.TypeVal != TYPEVAL_INVALIDO) {
             // Return error if the file already exists
             if (strcmp(tmp_record.name, file.name) == 0) {
                 return ERROR;
             }
+
         // If it's invalid = it's free (ie, we can write on it)
         } else {
             // copy the content of file to the actual position on cluster
-            memcpy(&content[position_on_cluster], &file, sizeof(Record));
+            memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
             // write the modified cluster (with the new file) 
             write_on_cluster(parent_dir.firstCluster, content);
             // doesn't need to iterate anymore
             able_to_write = TRUE;
+            
             break;
         }
     }
@@ -131,18 +137,21 @@ int delete2 (char *filename) {
     read_cluster(parent_dir.firstCluster, content);
 
     int i;
+
     // flag to check if a space to write was found
     int found = FALSE;
+
     Record tmp_record;
+
     for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
-        int position_on_cluster = i * sizeof(Record);
+        int position_on_cluster = i * RECORD_SIZE;
         // Copy the current record do parent dir to tmp_record
-        memcpy(&tmp_record, &content[position_on_cluster], sizeof(Record));
+        memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
         if (strcmp(tmp_record.name, file.name) == 0) {
             // sets file type to invalid (ie, it is now a free entry)
             file.TypeVal = TYPEVAL_INVALIDO;
 
-            memcpy(&content[position_on_cluster], &file, sizeof(Record));
+            memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
             // write the modified cluster (without the file) 
             write_on_cluster(parent_dir.firstCluster, content);
             found = TRUE;
@@ -154,7 +163,6 @@ int delete2 (char *filename) {
 
     // get file physical sector entry
     int p_file_sector = file.firstCluster;
-    //printf("\nFILE SECTOR = %i", p_file_sector);
 
     // convert phyisical sector entry to logical sector entry
     int l_file_sector = fat_phys_to_log(p_file_sector);
@@ -200,84 +208,136 @@ int seek2 (FILE2 handle, DWORD offset) {
     return SUCCESS;
 }
 
-int unusedEntryDir(DWORD cluster){
-    DWORD entry = 0;
-    char candidate[MAX_FILE_NAME_SIZE];
-    int numOfSectors = 0;
-    while(numOfSectors < superblock.SectorsPerCluster){
-        if(read_sector((cluster*superblock.SectorsPerCluster + superblock.DataSectorStart + numOfSectors), buffer) != 0){
-            return -1;
-        }
-        while(entry <= SECTOR_SIZE - sizeof(Record)){
-            strncpy(candidate,(const char*)(buffer + entry + 1), MAX_FILE_NAME_SIZE);
-            entry = entry + sizeof(Record);
-            if(strcmp(candidate,"") == 0){
-                if((*(BYTE *)(buffer + entry - sizeof(Record))) ==  TYPEVAL_INVALIDO){
-                    return (numOfSectors*SECTOR_SIZE + entry - sizeof(Record))/sizeof(Record);
-                }
-            }
-        }
-        numOfSectors++;
-        entry = 0;
-    }
-    return -1;
-}
-
+/**
+ * Creates a new directory. 
+ *
+ * param pathname - absolute or relative path for new directory
+ * 
+ * returns - SUCCESS if create FALSE otherwise.
+**/
 int mkdir2 (char *pathname) {
+    // stores if read and write was successfull
+    int can_read_write = SUCCESS;
+
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(pathname, path);
 
     // make sure parent path exists and
     // current name doesnt exists 
-    int exists = does_name_exists(path->tail) && !does_name_exists(path->head);
+    int valid = does_name_exists(path->tail) && !does_name_exists(path->head);
 
     // unable to locate parent path in disk or
     // current name exists in disk
     // then return an error
-    if (!exists) return ERROR;
-
-    // find parent directory by tail
-    Record parent_dir;
-    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
-
-    // find free entry within parent cluster
-    DWORD free_entry = lookup_cont_record_by_type(parent_dir.firstCluster, TYPEVAL_INVALIDO);
+    if (!valid) {
+        printf("error - path doesnt exist or file name already exists\n");
+        return ERROR;
+    }
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
-
-    // convert phyisical sector entry to logical sector entry
-    int l_free_sector = fat_phys_to_log(p_free_sector);
+    
+    // convert physical fat sector entry to logical fat sector entry
+    int l_fat_free_sector = fat_phys_to_log(p_free_sector);
 
     // read from logical sector and fill up buffer
-    read_sector(l_free_sector, buffer);
+    can_read_write = read_sector(l_fat_free_sector, buffer);
 
-    // calculate cluster size from free phyisical sector entry and
-    // set buffer position to previous calculated cluster
-    BYTE free_cluster = buffer + p_free_sector * superblock.SectorsPerCluster;
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
+
+    // calculate cluster size from free physical sector entry
+    BYTE p_free_cluster = p_free_sector * superblock.SectorsPerCluster;
 
     // fill buffer area with END_OF_FILE marking last sector
     // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
     // one cluster by specs
     DWORD eof = END_OF_FILE;
-    memcpy(&free_cluster, &eof, FAT_ENTRY_SIZE);
+    memcpy(buffer + p_free_cluster, &eof, FAT_ENTRY_SIZE);
 
-    // write this sector back to disk in FAT
-    write_sector(l_free_sector, buffer);
+    // write this sector back to disk in FAT marking current
+    // fat entry as END_OF_FILE
+    can_read_write = write_sector(l_fat_free_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
 
     // create current directory (head from path_from_name func)
     Record dir;
     dir.TypeVal = TYPEVAL_DIRETORIO;
     dir.bytesFileSize = phys_cluster_size();
+    dir.clustersFileSize = 1;
     strncpy(dir.name, path->head, FILE_NAME_SIZE);
     dir.firstCluster = p_free_sector;
 
-    // TODO: 
-    // - write directory to data sector
-    // - create . and .. directories and write to data sector
-    // - update parent directory
-    // - missing '/' (root) checks
+    // find parent directory by tail
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // convert parent_dir cluster to logical sector
+    DWORD l_parent_sector = cluster_to_log_sector(parent_dir.firstCluster);
+
+    // find free entry within parent cluster
+    DWORD free_entry = lookup_cont_record_by_type(parent_dir.firstCluster, TYPEVAL_INVALIDO);
+
+    // calculate number of records per sector
+    int nr_of_records = records_per_sector();
+
+    // calculate free entry logical sector
+    DWORD l_free_entry_sector = free_entry / nr_of_records;
+
+    // maps logical entry sector
+    DWORD l_parent_free_entry_sector = l_free_entry_sector + l_parent_sector;
+
+    // read from logical entry sector
+    can_read_write = read_sector(l_parent_free_entry_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
+
+    // maps logical free entry to physical free entry
+    DWORD p_free_entry = (free_entry - l_free_entry_sector * superblock.SectorsPerCluster) * RECORD_SIZE;
+
+    // fill buffer phyisical entry position with directory content
+    memcpy(buffer + p_free_entry, &dir, RECORD_SIZE);
+
+    // write parent sector back to disk
+    can_read_write = write_sector(l_parent_free_entry_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
+
+    // convert free physical fat sector to logical sector logical data sector
+    DWORD l_data_free_sector = cluster_to_log_sector(p_free_sector);
+
+    // read logical free data sector to cleanup buffer
+    read_sector(l_data_free_sector, buffer);
+    
+    // create self pointer '.'
+    Record self;
+    self.TypeVal = TYPEVAL_DIRETORIO;
+    strcpy(self.name, ".");
+    self.bytesFileSize = phys_cluster_size();
+    self.clustersFileSize = 1;
+    self.firstCluster = p_free_sector;
+
+    // create parent pointer '..'
+    Record parent;
+    parent.TypeVal = TYPEVAL_DIRETORIO;
+    strcpy(parent.name, "..");
+    parent.bytesFileSize = phys_cluster_size();
+    parent.clustersFileSize = 1;
+    parent.firstCluster = parent_dir.firstCluster;
+
+    // create add self pointer to buffer
+    memcpy(buffer, &self, RECORD_SIZE);
+    
+    // create add parent pointer to buffer
+    memcpy(buffer + RECORD_SIZE, &parent, RECORD_SIZE);
+
+    // write buffer within logical data sector
+    write_sector(l_data_free_sector, buffer);
 
     // release resources for path
     free(path);
