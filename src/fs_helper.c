@@ -580,6 +580,36 @@ void write_on_cluster(int cluster, unsigned char *content) {
     }
 }
 
+/**
+ * Check if the max number of files was reached
+ * If the max num is reached, you can not open a new file
+ *
+ * Returns 0 if can open; -1 if can't
+**/
+int can_open() {
+    return (num_opened_files < MAX_OPENED_FILES) ? SUCCESS : ERROR;
+}
+
+/**
+ * Save a record on the list of opened files
+ *
+ * Returns -1 on Error; index of the opened file on Success
+**/
+int save_as_opened(Record* record) {
+    if (can_open() == ERROR) {
+        return ERROR;
+    }
+
+    // save the record of file in the actual position of opened_files
+    memcpy(&opened_files[num_opened_files], &record, sizeof(Record));
+    // increase the opened files counter
+    num_opened_files++;
+
+    return (num_opened_files-1);
+    
+}
+
+
 void print_descriptor(struct t2fs_record descriptor, int tab) {
     int tabix;
     for (tabix = 0; tabix < tab; tabix++)

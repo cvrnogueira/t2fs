@@ -111,13 +111,11 @@ FILE2 create2 (char *filename) {
     // something bad happened, disk may be corrupted
     if (can_read_write != SUCCESS) return ERROR;
 
-    // save the record of file in the actual position of opened_files
-    memcpy(&opened_files[num_opened_files], &file, sizeof(Record));
-    // increase the opened files counter
-    num_opened_files++;
-    
     //print_disk();
-    return (num_opened_files-1);
+    
+	// if possible, save as opened
+	// otherwise, returns a error
+	return save_as_opened(&file);
 }
 
 int delete2 (char *filename) {
@@ -232,12 +230,9 @@ FILE2 open2 (char *filename) {
 		// Is not a regular file or softlink
 		return ERROR;
 
-	// save the record of file in the actual position of opened_files
-    memcpy(&opened_files[num_opened_files], &file, sizeof(Record));
-    // increase the opened files counter
-    num_opened_files++;
-    
-    return (num_opened_files-1);
+	// if possible, save as opened
+	// otherwise, returns a error
+	return save_as_opened(&file);
 }
 
 int close2 (FILE2 handle) {

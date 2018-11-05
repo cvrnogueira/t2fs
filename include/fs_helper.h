@@ -225,6 +225,13 @@ void read_cluster(int cluster, unsigned char *result);
 **/
 void write_on_cluster(int cluster, unsigned char *content);
 
+/**
+ * Save a record on the list of opened files
+ *
+ * Returns -1 on Error; index of the opened file on Success
+**/
+int save_as_opened(Record* record);
+
 // Funções para ajudar a visualizar o fs
 void print_disk();
 void print_superblock();
