@@ -32,6 +32,7 @@ FILE2 create2 (char *filename) {
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
+    //printf("\nFREE SECTOR ON CREATE2 = %i", p_free_sector);
 
     // create the record for the new file
     Record file;
@@ -42,6 +43,7 @@ FILE2 create2 (char *filename) {
     file.firstCluster = p_free_sector;
 
     // Here we insert the entry of the file on the parent directory
+    
     // buffer to read the content of parent dir cluster
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
     read_cluster(parent_dir.firstCluster, content);
@@ -87,8 +89,7 @@ FILE2 create2 (char *filename) {
     BYTE free_cluster = ((int) buffer) + p_free_sector * superblock.SectorsPerCluster;
 
     // fill buffer area with END_OF_FILE marking last sector
-    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
-    // one cluster by specs
+    // as END_OF_FILE (value 0xFFFFFFFF)
     DWORD eof = END_OF_FILE;
     memcpy(&free_cluster, &eof, FAT_ENTRY_SIZE);
 
@@ -100,6 +101,78 @@ FILE2 create2 (char *filename) {
 }
 
 int delete2 (char *filename) {
+	// extract path head and tail
+    Path *path = malloc(sizeof(Path));
+    path_from_name(filename, path);
+
+    // return error if parent path does not exists
+    if (!does_name_exists(path->tail))
+        // path does not exists
+        return ERROR;
+
+    // get the descriptor for parent folder
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // find the to-be-deleted file inside of parent dir
+	Record file;
+	if (!lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &file))
+		// file does not exists
+		return ERROR;  
+
+	if (!(file.TypeVal == TYPEVAL_REGULAR || file.TypeVal == TYPEVAL_LINK))
+		// Is not a regular file or softlink
+		return ERROR;
+
+	// Here we delete the entry of the file on the parent directory
+    
+    // buffer to read the content of parent dir cluster
+    unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(parent_dir.firstCluster, content);
+
+    int i;
+    // flag to check if a space to write was found
+    int found = FALSE;
+    Record tmp_record;
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        int position_on_cluster = i * sizeof(Record);
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &content[position_on_cluster], sizeof(Record));
+        if (strcmp(tmp_record.name, file.name) == 0) {
+            // sets file type to invalid (ie, it is now a free entry)
+            file.TypeVal = TYPEVAL_INVALIDO;
+
+            memcpy(&content[position_on_cluster], &file, sizeof(Record));
+            // write the modified cluster (without the file) 
+            write_on_cluster(parent_dir.firstCluster, content);
+            found = TRUE;
+        }
+    }
+
+    if (found == FALSE)
+    	return ERROR;
+
+    // get file physical sector entry
+    int p_file_sector = file.firstCluster;
+    //printf("\nFILE SECTOR = %i", p_file_sector);
+
+    // convert phyisical sector entry to logical sector entry
+    int l_file_sector = fat_phys_to_log(p_file_sector);
+
+    // read from logical sector and fill up buffer
+    read_sector(l_file_sector, buffer);
+
+    // calculate cluster size from free phyisical sector entry and
+    // set buffer position to previous calculated cluster
+    BYTE file_cluster = ((int) buffer) + p_file_sector * superblock.SectorsPerCluster;
+
+    // fill buffer area with FREE_CLUSTER 
+    DWORD eof = FREE_CLUSTER;
+    memcpy(&file_cluster, &eof, FAT_ENTRY_SIZE);
+
+    // write this sector back to disk in FAT
+    write_sector(l_file_sector, buffer);
+
     return SUCCESS;
 }
 
