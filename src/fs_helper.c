@@ -6,6 +6,12 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
+/*
+ * This function is declared here
+ * because is not supposed to be accessed from outside
+*/
+void set_local_fat();
+
 /**
  * Called by gcc attributes before main execution and responsible for
  * global vars initialization
@@ -30,6 +36,47 @@ static void initialize(void) {
 
     // sets the opened file counter to 0
     num_opened_files = 0;
+
+    set_local_fat();
+}
+
+/**
+ *
+ *
+**/
+int get_num_sectors() {
+    return superblock.DataSectorStart - superblock.pFATSectorStart;
+}
+
+/**
+ * 
+ *
+**/
+void set_local_fat() {
+    // allocate the necessary memory for a local instance of FAT
+    local_fat =  malloc (SECTOR_SIZE * get_num_sectors());
+    int index;
+    // temp variable to save the content of a sector
+    unsigned char sector_content[SECTOR_SIZE];
+
+    for (index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
+        int fat_index = (index - superblock.pFATSectorStart) * SECTOR_SIZE/4;
+        read_sector(index, sector_content);
+        memcpy(&local_fat[fat_index], sector_content, SECTOR_SIZE);
+    }
+}
+
+/**
+ * Save a dword on a given position of local FAT
+ * Also update the FAT on disk according to the local FAT
+**/
+void set_value_to_fat(int position, DWORD value) {
+    int index;
+    local_fat[position] = value;
+    for (index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
+        int fat_index = (index - superblock.pFATSectorStart) * SECTOR_SIZE/4;
+        write_sector(index, (unsigned char*) &local_fat[fat_index]);
+    }
 }
 
 /**
@@ -595,7 +642,7 @@ int can_open() {
  *
  * Returns -1 on Error; index of the opened file on Success
 **/
-int save_as_opened(Record* record) {
+int save_as_opened(Record record) {
     if (can_open() == ERROR) {
         return ERROR;
     }
@@ -605,9 +652,10 @@ int save_as_opened(Record* record) {
     for (i = 0; i < MAX_OPENED_FILES; i++) {
         if (opened_files[i].is_used == FALSE) {
             // copy to the free position found
-            memcpy(&opened_files[i].file, &record, sizeof(Record));
+            memcpy(&(opened_files[i].file), &record, sizeof(Record));
             // set the position as used
             opened_files[i].is_used = TRUE;
+            opened_files[i].current_pointer = 0;
             // increase the opened files counter
             num_opened_files++;
             return i;

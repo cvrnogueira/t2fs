@@ -71,6 +71,18 @@ void test_block() {
 int main() {
 	test_block();
 	test_block();
+
+
+	printf("Teste para ler arquivo");
+	int t = open2("file1.txt");
+	char content[5];
+	read2(t, content, 5);
+
+	printf(" = %s\n", strcmp(content, "Esse ") == 0 ? "SUCESSO!" : "ERRO!!!");
 	
+	printf("Teste para ler arquivo");
+	read2(t, content, 5);
+	printf(" = %s\n", strcmp(content, "eh o ") == 0 ? "SUCESSO!" : "ERRO!!!");
+
 	return 0;
 }

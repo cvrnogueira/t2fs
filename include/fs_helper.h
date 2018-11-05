@@ -63,6 +63,8 @@ Superblock superblock;
 
 DWORD curr_dir;
 
+DWORD* local_fat;
+
 BYTE buffer[SECTOR_SIZE];
 
 typedef struct {
@@ -72,6 +74,7 @@ typedef struct {
 
 typedef struct {
 	int is_used;
+	int current_pointer;
     Record  file;
 } OpenedFile;
 
@@ -234,7 +237,13 @@ void write_on_cluster(int cluster, unsigned char *content);
  *
  * Returns -1 on Error; index of the opened file on Success
 **/
-int save_as_opened(Record* record);
+int save_as_opened(Record record);
+
+/**
+ * Save a dword on a given position of local FAT
+ * Also update the FAT on disk according to the local FAT
+**/
+void set_value_to_fat(int position, DWORD value);
 
 // Funções para ajudar a visualizar o fs
 void print_disk();

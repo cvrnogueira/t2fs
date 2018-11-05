@@ -115,7 +115,7 @@ FILE2 create2 (char *filename) {
     
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(&file);
+	return save_as_opened(file);
 }
 
 int delete2 (char *filename) {
@@ -177,28 +177,25 @@ int delete2 (char *filename) {
     	return ERROR;
 
         // convert physical fat sector entry to logical fat sector entry
-    int l_fat_free_sector = fat_phys_to_log(file.firstCluster);
+    int l_fat_file_sector = fat_phys_to_log(file.firstCluster);
     //printf("\nFILE SECTOR ON DELETE2 = %i", file.firstCluster);
 
-
     // read from logical sector and fill up buffer
-    can_read_write = read_sector(l_fat_free_sector, buffer);
+    can_read_write = read_sector(l_fat_file_sector, buffer);
 
     // something bad happened, disk may be corrupted
     if (can_read_write != SUCCESS) return ERROR;
 
     // calculate cluster size from free physical sector entry
-    BYTE p_free_cluster = file.firstCluster * superblock.SectorsPerCluster;
+    BYTE p_file_cluster = file.firstCluster * superblock.SectorsPerCluster;
 
-    // fill buffer area with END_OF_FILE marking last sector
-    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
-    // one cluster by specs
+    // fill buffer area with FREE_CLUSTER
     DWORD eof = FREE_CLUSTER;
-    memcpy(buffer + p_free_cluster, &eof, FAT_ENTRY_SIZE);
+    memcpy(buffer + p_file_cluster, &eof, FAT_ENTRY_SIZE);
 
     // write this sector back to disk in FAT marking current
     // fat entry as END_OF_FILE
-    can_read_write = write_sector(l_fat_free_sector, buffer);
+    can_read_write = write_sector(l_fat_file_sector, buffer);
 
     // something bad happened, disk may be corrupted
     if (can_read_write != SUCCESS) return ERROR;
@@ -232,14 +229,16 @@ FILE2 open2 (char *filename) {
 
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(&file);
+	return save_as_opened(file);
 }
 
 int close2 (FILE2 handle) {
+	// Check if handle is inside of boundaries
 	if (handle < 0)
 		return ERROR;
 	if (handle >= MAX_OPENED_FILES)
 		return ERROR;
+	// Check if the passed handle has a file 
 	if (opened_files[handle].is_used == FALSE)
 		return ERROR;
 
@@ -251,7 +250,34 @@ int close2 (FILE2 handle) {
 }
 
 int read2 (FILE2 handle, char *buffer, int size) {
-    return SUCCESS;
+	// get the file from the opened list
+	Record file = opened_files[handle].file; 
+	int current_pointer = opened_files[handle].current_pointer;
+	
+	// creates a buffer to read the content
+	unsigned char content[file.clustersFileSize * SECTOR_SIZE * superblock.SectorsPerCluster];
+	
+	// read cluster by cluster and saves on the buffer
+	int cluster = file.firstCluster;
+	int i;
+	for (i = 0; i < file.clustersFileSize; i++) {
+		read_cluster(cluster, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		cluster = local_fat[cluster];
+	}
+
+	// size = min(size, difference_lenght)
+	// where difference_length is the size of bytes from the current_pointer
+	//		to the end of the file
+	int difference_length = file.bytesFileSize - current_pointer;
+	size = difference_length < size ? difference_length : size;
+
+	// copy the read content to the buffer
+	memcpy(buffer, &content[current_pointer], size);
+
+	// increases the current pointer
+	opened_files[handle].current_pointer += size;
+
+    return size;
 }
 
 int write2 (FILE2 handle, char *buffer, int size) {
