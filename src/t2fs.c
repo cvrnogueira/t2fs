@@ -250,6 +250,15 @@ int close2 (FILE2 handle) {
 }
 
 int read2 (FILE2 handle, char *buffer, int size) {
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	// Check if the passed handle has a file 
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
 	// get the file from the opened list
 	Record file = opened_files[handle].file; 
 	int current_pointer = opened_files[handle].current_pointer;
@@ -289,7 +298,24 @@ int truncate2 (FILE2 handle) {
 }
 
 int seek2 (FILE2 handle, DWORD offset) {
-    return SUCCESS;
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	// Check if the passed handle has a file 
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
+	// validate offset
+	if (offset < 0 && offset != -1) 
+		return ERROR;
+
+	// update the current_pointer of the passed handle
+	opened_files[handle].current_pointer = (offset == -1) ? 
+			opened_files[handle].file.bytesFileSize : offset; 
+
+	return SUCCESS;
 }
 
 /**

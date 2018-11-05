@@ -28,6 +28,15 @@ void ut_close(int expected, char* msg, int handle) {
 	printf(" = %s", t == expected ? "SUCESSO!" : "ERRO!!!");
 }
 
+void ut_read(int handle, int expected_size, char* msg, char* expected) {
+	printf("\n%s", msg);
+	char r[5];
+	int sz = read2(handle, r, 5);
+	//printf("\nABC = %i", strlen(expected));
+	//printf("\nABC = %s1", expected);
+	printf(" = %s", (strcmp(r, expected) == 0 && expected_size == sz) ? "SUCESSO!" : "ERRO!!!");
+}
+
 void test_block() {
 	char* filename = "xxx.txt";
 	delete2(filename);
@@ -64,7 +73,27 @@ void test_block() {
 	ut_close(-1, "Teste para fechar um arquivo invalido", 7);
 	ut_close(-1, "Teste para fechar um arquivo invalido", 0);
 
-	ut_delete(0, "Teste para deletar arquivo valido", filename);
+	ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
+
+	// ut_read le 5 caracteres por vez
+	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
+	ut_read(0, 5, "Teste para ler um arquivo valido", "eh o ");
+	ut_read(0, 5, "Teste para ler um arquivo valido", "arqui");
+
+	seek2(0, 0);
+	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
+	ut_read(0, 5, "Teste para ler um arquivo valido", "eh o ");
+
+	seek2(0, 0);
+	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
+
+	seek2(0, 10);
+	ut_read(0, 5, "Teste para ler um arquivo valido", "arqui");
+
+	seek2(0, -1);
+	//ut_read(0, 5, "Teste para ler um arquivo valido", "\0");
+	
+	ut_close(0, "Teste para fechar arquivo valido", 0);
 	printf("\n");
 }
 
@@ -72,17 +101,24 @@ int main() {
 	test_block();
 	test_block();
 
+	//ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
 
-	printf("Teste para ler arquivo");
-	int t = open2("file1.txt");
+	//ut_read(5, 5, "Teste para ler um arquivo valido", 0, "Esse ");
+	/*char result[5];
+	int t = read2(0, result, 5);
+	printf("\nreturned %s", result);
+	/*printf("Teste para ler arquivo");
+	int handle = open2("file1.txt");
 	char content[5];
-	read2(t, content, 5);
+	//seek2(handle, 5);
+	read2(handle, content, 5);
 
-	printf(" = %s\n", strcmp(content, "Esse ") == 0 ? "SUCESSO!" : "ERRO!!!");
+	printf("\nCONTEUDO = %s", content);
+	/*printf(" = %s\n", strcmp(content, "Esse ") == 0 ? "SUCESSO!" : "ERRO!!!");
 	
 	printf("Teste para ler arquivo");
 	read2(t, content, 5);
 	printf(" = %s\n", strcmp(content, "eh o ") == 0 ? "SUCESSO!" : "ERRO!!!");
-
+*/
 	return 0;
 }
