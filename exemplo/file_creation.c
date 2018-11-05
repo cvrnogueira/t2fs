@@ -18,15 +18,21 @@ void ut_delete(int expected, char* msg, char* path) {
 
 int main() {
 
-	char* file_to_insert = "xxx.txt";
+	char* filename = "xxx.txt";
+	delete2(filename);
 
-	ut_create(0, "Teste para criar arquivo novo valido", file_to_insert);
+	ut_create(0, "Teste para criar arquivo novo valido", filename);
 	ut_create(-1, "Teste para criar arquivo com path invalido", "./dummy/dummy.txt");
-	ut_create(-1, "Teste para criar arquivo repetido", file_to_insert);
+	ut_create(-1, "Teste para criar arquivo repetido", filename);
 	
-	ut_delete(0, "Teste para deletar arquivo valido", file_to_insert);
+	ut_delete(0, "Teste para deletar arquivo valido", filename);
 	ut_create(-1, "Teste para deletar arquivo com path invalido", "./dummy/dummy.txt");
-	ut_delete(-1, "Teste para deletar arquivo nao existente", file_to_insert);
+	ut_delete(-1, "Teste para deletar arquivo nao existente", filename);
+
+	ut_create(0, "Teste para criar arquivo novo valido", "tmp1.txt");
+	ut_create(0, "Teste para criar arquivo novo valido", "tmp2.txt");
+	ut_delete(0, "Teste para deletar arquivo valido", "tmp1.txt");
+	ut_delete(0, "Teste para deletar arquivo valido", "tmp2.txt");
 	
 	printf("\n");
 	return 0;

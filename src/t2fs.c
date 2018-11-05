@@ -16,6 +16,8 @@ int identify2 (char *name, int size) {
 }
 
 FILE2 create2 (char *filename) {
+    // stores if read and write was successfull
+    int can_read_write = SUCCESS;
     //print_disk();
     
     // extract path head and tail
@@ -84,29 +86,39 @@ FILE2 create2 (char *filename) {
     if (able_to_write == FALSE)
         return ERROR;
 
-    // convert phyisical sector entry to logical sector entry
-    int l_free_sector = fat_phys_to_log(p_free_sector);
+    // convert physical fat sector entry to logical fat sector entry
+    int l_fat_free_sector = fat_phys_to_log(p_free_sector);
 
     // read from logical sector and fill up buffer
-    read_sector(l_free_sector, buffer);
+    can_read_write = read_sector(l_fat_free_sector, buffer);
 
-    // calculate cluster size from free phyisical sector entry and
-    // set buffer position to previous calculated cluster
-    BYTE free_cluster = ((int) buffer) + p_free_sector * superblock.SectorsPerCluster;
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
+
+    // calculate cluster size from free physical sector entry
+    BYTE p_free_cluster = p_free_sector * superblock.SectorsPerCluster;
 
     // fill buffer area with END_OF_FILE marking last sector
-    // as END_OF_FILE (value 0xFFFFFFFF)
+    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
+    // one cluster by specs
     DWORD eof = END_OF_FILE;
-    memcpy(&free_cluster, &eof, FAT_ENTRY_SIZE);
+    memcpy(buffer + p_free_cluster, &eof, FAT_ENTRY_SIZE);
 
-    // write this sector back to disk in FAT
-    write_sector(l_free_sector, buffer);
+    // write this sector back to disk in FAT marking current
+    // fat entry as END_OF_FILE
+    can_read_write = write_sector(l_fat_free_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
     
     //print_disk();
     return (SUCCESS);
 }
 
 int delete2 (char *filename) {
+    // stores if read and write was successfull
+    int can_read_write = SUCCESS;
+
 	// extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(filename, path);
@@ -161,25 +173,32 @@ int delete2 (char *filename) {
     if (found == FALSE)
     	return ERROR;
 
-    // get file physical sector entry
-    int p_file_sector = file.firstCluster;
+        // convert physical fat sector entry to logical fat sector entry
+    int l_fat_free_sector = fat_phys_to_log(file.firstCluster);
+    //printf("\nFILE SECTOR ON DELETE2 = %i", file.firstCluster);
 
-    // convert phyisical sector entry to logical sector entry
-    int l_file_sector = fat_phys_to_log(p_file_sector);
 
     // read from logical sector and fill up buffer
-    read_sector(l_file_sector, buffer);
+    can_read_write = read_sector(l_fat_free_sector, buffer);
 
-    // calculate cluster size from free phyisical sector entry and
-    // set buffer position to previous calculated cluster
-    BYTE file_cluster = ((int) buffer) + p_file_sector * superblock.SectorsPerCluster;
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
 
-    // fill buffer area with FREE_CLUSTER 
+    // calculate cluster size from free physical sector entry
+    BYTE p_free_cluster = file.firstCluster * superblock.SectorsPerCluster;
+
+    // fill buffer area with END_OF_FILE marking last sector
+    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
+    // one cluster by specs
     DWORD eof = FREE_CLUSTER;
-    memcpy(&file_cluster, &eof, FAT_ENTRY_SIZE);
+    memcpy(buffer + p_free_cluster, &eof, FAT_ENTRY_SIZE);
 
-    // write this sector back to disk in FAT
-    write_sector(l_file_sector, buffer);
+    // write this sector back to disk in FAT marking current
+    // fat entry as END_OF_FILE
+    can_read_write = write_sector(l_fat_free_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
 
     return SUCCESS;
 }
