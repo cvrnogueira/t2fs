@@ -29,8 +29,8 @@ int main() {
 	ut_create(-1, "Teste para deletar arquivo com path invalido", "./dummy/dummy.txt");
 	ut_delete(-1, "Teste para deletar arquivo nao existente", filename);
 
-	ut_create(0, "Teste para criar arquivo novo valido", "tmp1.txt");
-	ut_create(0, "Teste para criar arquivo novo valido", "tmp2.txt");
+	ut_create(1, "Teste para criar arquivo novo valido", "tmp1.txt");
+	ut_create(2, "Teste para criar arquivo novo valido", "tmp2.txt");
 	ut_delete(0, "Teste para deletar arquivo valido", "tmp1.txt");
 	ut_delete(0, "Teste para deletar arquivo valido", "tmp2.txt");
 	

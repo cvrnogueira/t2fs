@@ -110,9 +110,14 @@ FILE2 create2 (char *filename) {
 
     // something bad happened, disk may be corrupted
     if (can_read_write != SUCCESS) return ERROR;
+
+    // save the record of file in the actual position of opened_files
+    memcpy(&opened_files[num_opened_files], &file, sizeof(Record));
+    // increase the opened files counter
+    num_opened_files++;
     
     //print_disk();
-    return (SUCCESS);
+    return (num_opened_files-1);
 }
 
 int delete2 (char *filename) {

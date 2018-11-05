@@ -27,6 +27,9 @@ static void initialize(void) {
     // initialize current directory poiting to data dir after root
     // based on superblock structure
     initialize_curr_dir(&superblock);
+
+    // sets the opened file counter to 0
+    num_opened_files = 0;
 }
 
 /**
