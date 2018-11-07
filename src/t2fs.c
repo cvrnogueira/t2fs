@@ -305,12 +305,9 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	int cluster_size = superblock.SectorsPerCluster * SECTOR_SIZE;
 	int size_with_write = current_pointer + size;
 	int content_size = cluster_size * file.clustersFileSize;
-	int total_bytes = file.bytesFileSize + size;
+	int total_bytes = file.bytesFileSize;
 
 	if (size_with_write > file.bytesFileSize) {
-		// in this case, the file is larger than it was
-		// so new file size is size_with_write
-		opened_files[handle].file.bytesFileSize = size_with_write;
 		content_size += size;
 		// if this happebsm ten total_bytes need to be updated
 		total_bytes = size_with_write;
@@ -363,6 +360,42 @@ int write2 (FILE2 handle, char *buffer, int size) {
 		write_index = local_fat[write_index];
 	}
 
+	// we need the path to get the parent folder
+	Path *path = malloc(sizeof(Path));
+    path_from_name(opened_files[handle].path, path); 
+
+	// we need the parent folder to update the record
+	Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+	
+	// Here we update the entry of the file on the parent directory
+    // buffer to read the content of parent dir cluster
+   
+	unsigned char parent_content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(parent_dir.firstCluster, parent_content);
+
+    int i;
+
+    Record tmp_record;
+
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        int position_on_cluster = i * RECORD_SIZE;
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &parent_content[position_on_cluster], RECORD_SIZE);
+        if (strcmp(tmp_record.name, file.name) == 0) {
+        	// update the file size
+            file.bytesFileSize = total_bytes;
+            file.clustersFileSize = file.clustersFileSize + file_clusters_allocated;
+
+            // save the updated file
+            memcpy(&parent_content[position_on_cluster], &file, RECORD_SIZE);
+            // write the file with differences 
+            write_on_cluster(parent_dir.firstCluster, parent_content);
+        }
+    }
+
+    // update the register on opened_files
+    opened_files[handle].file = file;
 
 
     return size;

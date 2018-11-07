@@ -53,6 +53,7 @@ void write_block() {
 	read2(handle, content_read, 5);
 	printf("\n%s", "Teste para escrever em um arquivo valido");
 	printf(" = %s", strcmp(content_read, "Esse ") == 0 ? "SUCESSO" : "ERRO");	
+	close2(handle);
 }
 
 void test_block() {
@@ -120,25 +121,32 @@ void test_block() {
 
 int main() {
 	
-	test_block();
-	test_block();
+	/*test_block();
+	test_block();*/
 	
-	/*
-	int handle = open2("dir1/file1.txt");
-	printf("\nRESULT = %i", handle);
+	//print_disk();
+
+	int handle = open2("file1.txt");
+	
 	char content[200];
 	printf("\nVOU DAR READ");
-	int t = read2(handle, content, 5000);
+	read2(handle, content, 150);
 	printf("\n%s", content);
-	/*printf("\nVOU DAR WRITE");
-	char *cnt_write = "c";
+	
+	printf("\nVOU DAR WRITE");
+	char *cnt_write = "XXXXXXXXXX";
+	seek2(handle, 4);
+	write2(handle, cnt_write, 3);
+	seek2(handle, 53);
+	write2(handle, cnt_write, 5);
+	
+	char content1[200];
+	printf("\nVOU DAR READ");
 	seek2(handle, 0);
-	write2(handle, cnt_write, 1);
-	printf("\nVAU DAR READ");
-	seek2(handle, 0);
-	read2(handle, content, 100);
-	printf("\n%s", content);
-	delete2("file12.txt");*/
+	read2(handle, content1, 150);
+	printf("\n%s", content1);
+
 	printf("\n");
+	print_disk();
 	return 0;
 }
