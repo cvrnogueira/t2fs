@@ -567,7 +567,7 @@ DWORD phys_fat_first_fit(void) {
         while (entry < SECTOR_SIZE) {
         
             // increment buffer by entry
-            const DWORD entry_pos = buffer + entry;
+            const DWORD entry_pos = ((int) buffer) + entry;
 
             // read current entry value
             const DWORD entry_val = *(DWORD *) entry_pos;

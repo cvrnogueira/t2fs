@@ -267,11 +267,11 @@ int read2 (FILE2 handle, char *buffer, int size) {
 	unsigned char content[file.clustersFileSize * SECTOR_SIZE * superblock.SectorsPerCluster];
 	
 	// read cluster by cluster and saves on the buffer
-	int cluster = file.firstCluster;
+	int read_index = file.firstCluster;
 	int i;
 	for (i = 0; i < file.clustersFileSize; i++) {
-		read_cluster(cluster, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
-		cluster = local_fat[cluster];
+		read_cluster(read_index, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		read_index = local_fat[read_index];
 	}
 
 	// size = min(size, difference_lenght)
@@ -290,7 +290,80 @@ int read2 (FILE2 handle, char *buffer, int size) {
 }
 
 int write2 (FILE2 handle, char *buffer, int size) {
-    return SUCCESS;
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	// Check if the passed handle has a file 
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
+	// get the file from the opened list
+	Record file = opened_files[handle].file; 
+	int current_pointer = opened_files[handle].current_pointer;
+	int cluster_size = superblock.SectorsPerCluster * SECTOR_SIZE;
+	int size_with_write = current_pointer + size;
+	int content_size = cluster_size * file.clustersFileSize;
+	int total_bytes = file.bytesFileSize + size;
+
+	if (size_with_write > file.bytesFileSize) {
+		// in this case, the file is larger than it was
+		// so new file size is size_with_write
+		//opened_files[handle].file.bytesFileSize = size_with_write;
+		content_size += size;
+		// if this happebsm ten total_bytes need to be updated
+		total_bytes = size_with_write;
+	}
+
+	// total number of cluster = file size in bytes / cluster size in bytes
+	// ceil is used because if a cluster has 1024bytes and a file has 1025,
+	//		then 2 clusters are necessary
+	int file_total_clusters = ceil((float) (total_bytes / cluster_size));
+	// here we find out how many clusters need be allocated
+	int file_clusters_to_alloc = file_total_clusters - file.clustersFileSize;
+	// number of clusters really allocated
+	int file_clusters_allocated = 0;
+
+	if (file_clusters_to_alloc > 0) {
+		int fat_last_index = file.firstCluster;
+		while (local_fat[fat_last_index] != EOF)
+			fat_last_index = local_fat[fat_last_index];
+		int fat_index;
+		for (fat_index = 0; fat_index < file_clusters_to_alloc; fat_index++) {
+			int new_fit = phys_fat_first_fit();
+			if (new_fit != ERROR) {
+				local_fat[fat_last_index] = new_fit;
+				fat_last_index = new_fit;
+				file_clusters_allocated++;
+			} else {
+				break;
+			}
+		}
+		local_fat[fat_last_index] = EOF;
+	}
+
+	// creates a buffer to read the content
+	unsigned char content[content_size];
+	
+	// read cluster by cluster and saves on the buffer
+	int read_index = file.firstCluster;
+	int index;
+	for (index = 0; index < file.clustersFileSize + file_clusters_allocated; index++) {
+		read_cluster(read_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		read_index = local_fat[read_index];
+	}
+
+	// update the content
+	memcpy(&content[current_pointer], buffer, size);
+	
+	int write_index = file.firstCluster;
+	for (index = 0; index < file.clustersFileSize; index++) {
+		write_on_cluster(write_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		write_index = local_fat[write_index];
+	}
+
+    return size;
 }
 
 int truncate2 (FILE2 handle) {

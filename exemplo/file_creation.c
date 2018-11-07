@@ -98,9 +98,20 @@ void test_block() {
 }
 
 int main() {
-	test_block();
-	test_block();
+	/*test_block();
+	test_block();*/
 
+	int handle = open2("file2.txt");
+	char content[100];
+	read2(handle, content, 100);
+	printf("\n%s", content);
+	printf("\nVOU DAR WRITE");
+	char *cnt_write = "aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1aaaaaaaaa1";
+	seek2(handle, 0);
+	write2(handle, cnt_write, 300);
+	read2(handle, content, 300);
+	printf("\n%s", content);
+	printf("\n");
 	//ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
 
 	//ut_read(5, 5, "Teste para ler um arquivo valido", 0, "Esse ");
