@@ -642,7 +642,7 @@ int can_open() {
  *
  * Returns -1 on Error; index of the opened file on Success
 **/
-int save_as_opened(Record record) {
+int save_as_opened(Record record, char* path) {
     if (can_open() == ERROR) {
         return ERROR;
     }
@@ -655,7 +655,10 @@ int save_as_opened(Record record) {
             memcpy(&(opened_files[i].file), &record, sizeof(Record));
             // set the position as used
             opened_files[i].is_used = TRUE;
+            // set current pointer on the start of the file
             opened_files[i].current_pointer = 0;
+            // set path to the record
+            opened_files[i].path = path;
             // increase the opened files counter
             num_opened_files++;
             return i;

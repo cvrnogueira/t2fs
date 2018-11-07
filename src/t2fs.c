@@ -115,7 +115,7 @@ FILE2 create2 (char *filename) {
     
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(file);
+	return save_as_opened(file, filename);
 }
 
 int delete2 (char *filename) {
@@ -229,7 +229,7 @@ FILE2 open2 (char *filename) {
 
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(file);
+	return save_as_opened(file, filename);
 }
 
 int close2 (FILE2 handle) {
@@ -310,7 +310,7 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	if (size_with_write > file.bytesFileSize) {
 		// in this case, the file is larger than it was
 		// so new file size is size_with_write
-		//opened_files[handle].file.bytesFileSize = size_with_write;
+		opened_files[handle].file.bytesFileSize = size_with_write;
 		content_size += size;
 		// if this happebsm ten total_bytes need to be updated
 		total_bytes = size_with_write;
@@ -362,6 +362,8 @@ int write2 (FILE2 handle, char *buffer, int size) {
 		write_on_cluster(write_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
 		write_index = local_fat[write_index];
 	}
+
+
 
     return size;
 }

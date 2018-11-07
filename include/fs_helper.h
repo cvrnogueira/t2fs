@@ -76,6 +76,7 @@ typedef struct {
 	int is_used;
 	int current_pointer;
     Record  file;
+    char* path;
 } OpenedFile;
 
 OpenedFile opened_files[MAX_OPENED_FILES];
@@ -237,7 +238,7 @@ void write_on_cluster(int cluster, unsigned char *content);
  *
  * Returns -1 on Error; index of the opened file on Success
 **/
-int save_as_opened(Record record);
+int save_as_opened(Record record, char* path);
 
 /**
  * Save a dword on a given position of local FAT
