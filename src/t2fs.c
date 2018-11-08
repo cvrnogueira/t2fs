@@ -154,9 +154,15 @@ int delete2 (char *filename) {
     if (found == FALSE)
     	return ERROR;
 
-    // free the FAT entry that the file used to use
-    if (set_value_to_fat(file.firstCluster, FREE_CLUSTER) != SUCCESS)
-    	return ERROR;
+    // free the FAT entries that the file used to use
+    int fat_index;
+    int cluster_to_delete = file.firstCluster;
+    for (fat_index = 0; fat_index < file.clustersFileSize; fat_index++) {
+        int tmp_cluster = local_fat[cluster_to_delete];
+        if (set_value_to_fat(cluster_to_delete, FREE_CLUSTER) != SUCCESS)
+        	return ERROR;
+        cluster_to_delete = tmp_cluster;
+    }
 
     return SUCCESS;
 }
@@ -220,6 +226,7 @@ int read2 (FILE2 handle, char *buffer, int size) {
 
 	// get the file from the opened list
 	Record file = opened_files[handle].file; 
+    //printf("\nTENHO %i CLUSTERs", file.clustersFileSize);
 	int current_pointer = opened_files[handle].current_pointer;
 	
 	// creates a buffer to read the content

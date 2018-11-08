@@ -70,7 +70,7 @@ void print_fat() {
     set_local_fat();
     int i;
     printf("\n");
-    for (i = 0; i < 50; i++) {
+    for (i = 0; i < 20; i++) {
         printf("%d: %02X\n", i, local_fat[i]);
     }
 }

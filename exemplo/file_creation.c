@@ -165,9 +165,15 @@ void test_block() {
 
 int main() {
 	
-	test_block();
-	test_block();
+	/*test_block();
+	test_block();*/
 
+	print_fat();
+
+	int h = open2("file1.txt");
+	write_block_aux("file1.txt", 2049);
+
+	delete2("file1.txt");
 	print_fat();
 	return 0;
 }
