@@ -81,34 +81,12 @@ FILE2 create2 (char *filename) {
         }
     }
 
-    // Directory is full
+    // parent directory is full
     if (able_to_write == FALSE)
         return ERROR;
 
-    // convert physical fat sector entry to logical fat sector entry
-    int l_fat_free_sector = fat_phys_to_log(p_free_sector);
-
-    // read from logical sector and fill up buffer
-    can_read_write = read_sector(l_fat_free_sector, buffer);
-
-    // something bad happened, disk may be corrupted
-    if (can_read_write != SUCCESS) return ERROR;
-
-    // calculate cluster size from free physical sector entry
-    BYTE p_free_cluster = p_free_sector * superblock.SectorsPerCluster;
-
-    // fill buffer area with END_OF_FILE marking last sector
-    // as END_OF_FILE (value 0xFFFFFFFF) since directories occupy 
-    // one cluster by specs
-    DWORD eof = END_OF_FILE;
-    memcpy(buffer + p_free_cluster, &eof, FAT_ENTRY_SIZE);
-
-    // write this sector back to disk in FAT marking current
-    // fat entry as END_OF_FILE
-    can_read_write = write_sector(l_fat_free_sector, buffer);
-
-    // something bad happened, disk may be corrupted
-    if (can_read_write != SUCCESS) return ERROR;
+    // sets EOF to the found free index of FAT
+    set_value_to_fat(p_free_sector, EOF);
 
     //print_disk();
     
@@ -175,28 +153,8 @@ int delete2 (char *filename) {
     if (found == FALSE)
     	return ERROR;
 
-        // convert physical fat sector entry to logical fat sector entry
-    int l_fat_file_sector = fat_phys_to_log(file.firstCluster);
-    
-    // read from logical sector and fill up buffer
-    can_read_write = read_sector(l_fat_file_sector, buffer);
-
-    // something bad happened, disk may be corrupted
-    if (can_read_write != SUCCESS) return ERROR;
-
-    // calculate cluster size from free physical sector entry
-    BYTE p_file_cluster = file.firstCluster * superblock.SectorsPerCluster;
-
-    // fill buffer area with FREE_CLUSTER
-    DWORD eof = FREE_CLUSTER;
-    memcpy(buffer + p_file_cluster, &eof, FAT_ENTRY_SIZE);
-
-    // write this sector back to disk in FAT marking current
-    // fat entry as END_OF_FILE
-    can_read_write = write_sector(l_fat_file_sector, buffer);
-
-    // something bad happened, disk may be corrupted
-    if (can_read_write != SUCCESS) return ERROR;
+    // free the FAT entry that the file used to use
+    set_value_to_fat(file.firstCluster, FREE_CLUSTER);
 
     return SUCCESS;
 }

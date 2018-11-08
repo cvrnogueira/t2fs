@@ -45,14 +45,14 @@ void write_block_1() {
 	char content_read[5];
 	read2(handle, content_read, 5);
 	printf("\n%s", "Teste para escrever em um arquivo valido");
-	printf(" = %s", strcmp(content_read, "olae ") == 0 ? "SUCESSO" : "ERRO");
+	printf(" = %s", strcmp(content_read, "olae ") == 0 ? "SUCESSO!" : "ERRO");
 	seek2(handle, 0);
 	content = "Ess";
 	write2(handle, content, 3);
 	seek2(handle, 0);
 	read2(handle, content_read, 5);
 	printf("\n%s", "Teste para escrever em um arquivo valido");
-	printf(" = %s", strcmp(content_read, "Esse ") == 0 ? "SUCESSO" : "ERRO");	
+	printf(" = %s", strcmp(content_read, "Esse ") == 0 ? "SUCESSO!" : "ERRO");	
 	close2(handle);
 }
 
