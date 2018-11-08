@@ -66,6 +66,14 @@ void set_local_fat() {
     }
 }
 
+void print_fat() {
+    int i;
+    printf("\n");
+    for (i = 0; i < 50; i++) {
+        printf("%d: %02X\n", i, local_fat[i]);
+    }
+}
+
 /**
  * Save a dword on a given position of local FAT
  * Also update the FAT on disk according to the local FAT
@@ -567,7 +575,7 @@ DWORD phys_fat_first_fit(void) {
         while (entry < SECTOR_SIZE) {
         
             // increment buffer by entry
-            const DWORD entry_pos = buffer + entry;
+            const DWORD entry_pos = ((int) buffer) + entry;
 
             // read current entry value
             const DWORD entry_val = *(DWORD *) entry_pos;
@@ -642,7 +650,7 @@ int can_open() {
  *
  * Returns -1 on Error; index of the opened file on Success
 **/
-int save_as_opened(Record record) {
+int save_as_opened(Record record, char* path) {
     if (can_open() == ERROR) {
         return ERROR;
     }
@@ -655,7 +663,10 @@ int save_as_opened(Record record) {
             memcpy(&(opened_files[i].file), &record, sizeof(Record));
             // set the position as used
             opened_files[i].is_used = TRUE;
+            // set current pointer on the start of the file
             opened_files[i].current_pointer = 0;
+            // set path to the record
+            opened_files[i].path = path;
             // increase the opened files counter
             num_opened_files++;
             return i;

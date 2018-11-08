@@ -34,8 +34,7 @@ FILE2 create2 (char *filename) {
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
-    //printf("\nFREE SECTOR ON CREATE2 = %i", p_free_sector);
-
+    
     // create the record for the new file
     Record file;
     file.TypeVal = TYPEVAL_REGULAR;
@@ -115,7 +114,7 @@ FILE2 create2 (char *filename) {
     
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(file);
+	return save_as_opened(file, filename);
 }
 
 int delete2 (char *filename) {
@@ -178,8 +177,7 @@ int delete2 (char *filename) {
 
         // convert physical fat sector entry to logical fat sector entry
     int l_fat_file_sector = fat_phys_to_log(file.firstCluster);
-    //printf("\nFILE SECTOR ON DELETE2 = %i", file.firstCluster);
-
+    
     // read from logical sector and fill up buffer
     can_read_write = read_sector(l_fat_file_sector, buffer);
 
@@ -204,6 +202,7 @@ int delete2 (char *filename) {
 }
 
 FILE2 open2 (char *filename) {
+
 	// extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(filename, path);
@@ -229,7 +228,7 @@ FILE2 open2 (char *filename) {
 
 	// if possible, save as opened
 	// otherwise, returns a error
-	return save_as_opened(file);
+	return save_as_opened(file, filename);
 }
 
 int close2 (FILE2 handle) {
@@ -267,11 +266,11 @@ int read2 (FILE2 handle, char *buffer, int size) {
 	unsigned char content[file.clustersFileSize * SECTOR_SIZE * superblock.SectorsPerCluster];
 	
 	// read cluster by cluster and saves on the buffer
-	int cluster = file.firstCluster;
+	int read_index = file.firstCluster;
 	int i;
 	for (i = 0; i < file.clustersFileSize; i++) {
-		read_cluster(cluster, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
-		cluster = local_fat[cluster];
+		read_cluster(read_index, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		read_index = local_fat[read_index];
 	}
 
 	// size = min(size, difference_lenght)
@@ -290,7 +289,117 @@ int read2 (FILE2 handle, char *buffer, int size) {
 }
 
 int write2 (FILE2 handle, char *buffer, int size) {
-    return SUCCESS;
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	// Check if the passed handle has a file 
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
+	// get the file from the opened list
+	Record file = opened_files[handle].file; 
+	int current_pointer = opened_files[handle].current_pointer;
+	int cluster_size = superblock.SectorsPerCluster * SECTOR_SIZE;
+	int size_with_write = current_pointer + size;
+	int content_size = cluster_size * file.clustersFileSize;
+	int total_bytes = file.bytesFileSize;
+
+	if (size_with_write > file.bytesFileSize) {
+		content_size += size;
+		// if this happebsm ten total_bytes need to be updated
+		total_bytes = size_with_write;
+	}
+
+	// total number of cluster = file size in bytes / cluster size in bytes
+	// ceil is used because if a cluster has 1024bytes and a file has 1025,
+	//		then 2 clusters are necessary
+	int file_total_clusters = ceil(((float) total_bytes) / cluster_size);
+	
+	// here we find out how many clusters need be allocated
+	int file_clusters_to_alloc = file_total_clusters - file.clustersFileSize;
+	// number of clusters really allocated
+	int file_clusters_allocated = 0;
+
+	if (file_clusters_to_alloc > 0) {
+		int fat_last_index = file.firstCluster;
+		while (local_fat[fat_last_index] != EOF)
+			fat_last_index = local_fat[fat_last_index];
+		int fat_index;
+		for (fat_index = 0; fat_index < file_clusters_to_alloc; fat_index++) {
+			int new_fit = phys_fat_first_fit();
+			if (new_fit != ERROR) {
+				set_value_to_fat(fat_last_index, new_fit);
+				set_value_to_fat(new_fit, EOF);
+				fat_last_index = new_fit;
+				file_clusters_allocated++;
+			} else {
+				break;
+			}
+		}
+		set_value_to_fat(fat_last_index, EOF);
+	}
+
+	// creates a buffer to read the content
+	unsigned char content[content_size];
+	
+	// read cluster by cluster and saves on the buffer
+	int read_index = file.firstCluster;
+	int index;
+	for (index = 0; index < file.clustersFileSize + file_clusters_allocated; index++) {
+		read_cluster(read_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		read_index = local_fat[read_index];
+	}
+
+	// update the content
+	memcpy(&content[current_pointer], buffer, size);
+	
+	int write_index = file.firstCluster;
+	for (index = 0; index < file.clustersFileSize; index++) {
+		write_on_cluster(write_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		write_index = local_fat[write_index];
+	}
+
+	// we need the path to get the parent folder
+	Path *path = malloc(sizeof(Path));
+    path_from_name(opened_files[handle].path, path); 
+
+	// we need the parent folder to update the record
+	Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+	
+	// Here we update the entry of the file on the parent directory
+    // buffer to read the content of parent dir cluster
+   
+	unsigned char parent_content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(parent_dir.firstCluster, parent_content);
+
+    int i;
+
+    Record tmp_record;
+
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        int position_on_cluster = i * RECORD_SIZE;
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &parent_content[position_on_cluster], RECORD_SIZE);
+        if (strcmp(tmp_record.name, file.name) == 0) {
+        	// update the file size
+            file.bytesFileSize = total_bytes;
+            file.clustersFileSize = file.clustersFileSize + file_clusters_allocated;
+
+            // save the updated file
+            memcpy(&parent_content[position_on_cluster], &file, RECORD_SIZE);
+            // write the file with differences 
+            write_on_cluster(parent_dir.firstCluster, parent_content);
+        }
+    }
+
+    // update the register on opened_files
+    opened_files[handle].file = file;
+
+
+    return size;
 }
 
 int truncate2 (FILE2 handle) {

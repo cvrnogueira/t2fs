@@ -16,10 +16,11 @@ void ut_delete(int expected, char* msg, char* path) {
 	printf(" =  %s", t == expected ? "SUCESSO!" : "ERRO!!!");
 }
 
-void ut_open(int expected, char* msg, char* path) {
+int ut_open(int expected, char* msg, char* path) {
 	printf("\n%s", msg);
-	int t = open2(path);
-	printf(" = %s", t == expected ? "SUCESSO!" : "ERRO!!!");
+	int handle = open2(path);
+	printf(" = %s", handle == expected ? "SUCESSO!" : "ERRO!!!");
+	return handle;
 }
 
 void ut_close(int expected, char* msg, int handle) {
@@ -32,9 +33,60 @@ void ut_read(int handle, int expected_size, char* msg, char* expected) {
 	printf("\n%s", msg);
 	char r[5];
 	int sz = read2(handle, r, 5);
-	//printf("\nABC = %i", strlen(expected));
-	//printf("\nABC = %s1", expected);
 	printf(" = %s", (strcmp(r, expected) == 0 && expected_size == sz) ? "SUCESSO!" : "ERRO!!!");
+}
+
+void write_block_1() {
+	int handle = open2("file1.txt");
+	char* content = "ola";
+	write2(handle, content, 3);
+	seek2(handle, 0);
+	char content_read[5];
+	read2(handle, content_read, 5);
+	printf("\n%s", "Teste para escrever em um arquivo valido");
+	printf(" = %s", strcmp(content_read, "olae ") == 0 ? "SUCESSO" : "ERRO");
+	seek2(handle, 0);
+	content = "Ess";
+	write2(handle, content, 3);
+	seek2(handle, 0);
+	read2(handle, content_read, 5);
+	printf("\n%s", "Teste para escrever em um arquivo valido");
+	printf(" = %s", strcmp(content_read, "Esse ") == 0 ? "SUCESSO" : "ERRO");	
+	close2(handle);
+}
+
+void write_block_aux(int N) {
+	int handle = open2("file2.txt");
+	char cnt_write[N+1];
+	memset(cnt_write, 'X', N);
+	cnt_write[N] = '\0';
+	//printf("\nEU INICIO = %s", cnt_write);
+	seek2(handle, 0);
+	int res = write2(handle, cnt_write, N);
+	seek2(handle, 0);
+	char content_read[N+1];
+	read2(handle, content_read, N);
+	content_read[N] = '\0';
+	//printf("\nVOLTOU = %s", content_read);
+	//printf("\nEU ESPERO = %s", cnt_write);
+	printf("\n%s", "Teste para escrever em um arquivo valido");
+	printf(" = %s", strcmp(content_read, cnt_write) == 0 ? "SUCESSO!" : "ERRO!!!");
+	//printf("\ncnt_write tem %i\n", sizeof(cnt_write));
+	close2(handle);
+}
+
+void write_block_2() {
+	int i;
+	for (i = 0; i < 15; i++) {
+		int N = (2^i) + 1;
+		write_block_aux(N);
+	}
+	
+	for (i = 0; i < 15; i++) {
+		int N = (2^i) + 1;
+		write_block_aux(N);
+	}
+	printf("\n");
 }
 
 void test_block() {
@@ -73,52 +125,37 @@ void test_block() {
 	ut_close(-1, "Teste para fechar um arquivo invalido", 7);
 	ut_close(-1, "Teste para fechar um arquivo invalido", 0);
 
-	ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
+	int handle = ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
 
 	// ut_read le 5 caracteres por vez
-	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
-	ut_read(0, 5, "Teste para ler um arquivo valido", "eh o ");
-	ut_read(0, 5, "Teste para ler um arquivo valido", "arqui");
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "Esse ");
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "eh o ");
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "arqui");
 
-	seek2(0, 0);
-	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
-	ut_read(0, 5, "Teste para ler um arquivo valido", "eh o ");
+	seek2(handle, 0);
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "Esse ");
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "eh o ");
 
-	seek2(0, 0);
-	ut_read(0, 5, "Teste para ler um arquivo valido", "Esse ");
+	seek2(handle, 0);
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "Esse ");
 
-	seek2(0, 10);
-	ut_read(0, 5, "Teste para ler um arquivo valido", "arqui");
+	seek2(handle, 10);
+	ut_read(handle, 5, "Teste para ler um arquivo valido", "arqui");
 
-	seek2(0, -1);
+	seek2(handle, -1);
 	//ut_read(0, 5, "Teste para ler um arquivo valido", "\0");
 	
-	ut_close(0, "Teste para fechar arquivo valido", 0);
+	ut_close(handle, "Teste para fechar arquivo valido", 0);
+	
+	write_block_1();
+	write_block_2();
 	printf("\n");
 }
 
 int main() {
-	test_block();
-	test_block();
-
-	//ut_open(0, "Teste para abrir um arquivo valido", "file1.txt");
-
-	//ut_read(5, 5, "Teste para ler um arquivo valido", 0, "Esse ");
-	/*char result[5];
-	int t = read2(0, result, 5);
-	printf("\nreturned %s", result);
-	/*printf("Teste para ler arquivo");
-	int handle = open2("file1.txt");
-	char content[5];
-	//seek2(handle, 5);
-	read2(handle, content, 5);
-
-	printf("\nCONTEUDO = %s", content);
-	/*printf(" = %s\n", strcmp(content, "Esse ") == 0 ? "SUCESSO!" : "ERRO!!!");
 	
-	printf("Teste para ler arquivo");
-	read2(t, content, 5);
-	printf(" = %s\n", strcmp(content, "eh o ") == 0 ? "SUCESSO!" : "ERRO!!!");
-*/
+	test_block();
+	test_block();
+	
 	return 0;
 }
