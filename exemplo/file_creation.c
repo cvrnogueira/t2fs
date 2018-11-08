@@ -4,10 +4,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-void ut_create(int expected, char* msg, char* path) {
+int ut_create(int expected, char* msg, char* path) {
 	printf("\n%s", msg);
 	int t = create2(path);
 	printf(" =  %s", t == expected ? "SUCESSO!" : "ERRO!!!");
+	return t;
 }
 
 void ut_delete(int expected, char* msg, char* path) {
@@ -55,8 +56,8 @@ void write_block_1() {
 	close2(handle);
 }
 
-void write_block_aux(int N) {
-	int handle = open2("file2.txt");
+void write_block_aux(char* file, int N) {
+	int handle = open2(file);
 	char cnt_write[N+1];
 	memset(cnt_write, 'X', N);
 	cnt_write[N] = '\0';
@@ -75,16 +76,16 @@ void write_block_aux(int N) {
 	close2(handle);
 }
 
-void write_block_2() {
+void write_block_2(char* file) {
 	int i;
 	for (i = 0; i < 15; i++) {
 		int N = (2^i) + 1;
-		write_block_aux(N);
+		write_block_aux(file, N);
 	}
 	
 	for (i = 0; i < 15; i++) {
 		int N = (2^i) + 1;
-		write_block_aux(N);
+		write_block_aux(file, N);
 	}
 	printf("\n");
 }
@@ -148,7 +149,18 @@ void test_block() {
 	ut_close(handle, "Teste para fechar arquivo valido", 0);
 	
 	write_block_1();
-	write_block_2();
+	write_block_2("file2.txt");
+
+	handle = ut_create(0, "Teste para criar arquivo novo valido", "foo");
+	write_block_2("foo");
+	close2(handle);
+	delete2("foo");
+
+	handle = ut_create(0, "Teste para criar arquivo novo valido", "dir1/foo");
+	write_block_2("dir1/foo");
+	close2(handle);
+	delete2("dir1/foo");
+
 	printf("\n");
 }
 
@@ -156,6 +168,5 @@ int main() {
 	
 	test_block();
 	test_block();
-	
 	return 0;
 }
