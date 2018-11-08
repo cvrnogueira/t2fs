@@ -33,11 +33,10 @@ void ut_read(int handle, int expected_size, char* msg, char* expected) {
 	printf("\n%s", msg);
 	char r[5];
 	int sz = read2(handle, r, 5);
-	//printf("\nABC = %i", strlen(expected));
 	printf(" = %s", (strcmp(r, expected) == 0 && expected_size == sz) ? "SUCESSO!" : "ERRO!!!");
 }
 
-void write_block() {
+void write_block_1() {
 	int handle = open2("file1.txt");
 	char* content = "ola";
 	write2(handle, content, 3);
@@ -54,6 +53,40 @@ void write_block() {
 	printf("\n%s", "Teste para escrever em um arquivo valido");
 	printf(" = %s", strcmp(content_read, "Esse ") == 0 ? "SUCESSO" : "ERRO");	
 	close2(handle);
+}
+
+void write_block_aux(int N) {
+	int handle = open2("file2.txt");
+	char cnt_write[N+1];
+	memset(cnt_write, 'X', N);
+	cnt_write[N] = '\0';
+	//printf("\nEU INICIO = %s", cnt_write);
+	seek2(handle, 0);
+	int res = write2(handle, cnt_write, N);
+	seek2(handle, 0);
+	char content_read[N+1];
+	read2(handle, content_read, N);
+	content_read[N] = '\0';
+	//printf("\nVOLTOU = %s", content_read);
+	//printf("\nEU ESPERO = %s", cnt_write);
+	printf("\n%s", "Teste para escrever em um arquivo valido");
+	printf(" = %s", strcmp(content_read, cnt_write) == 0 ? "SUCESSO!" : "ERRO!!!");
+	//printf("\ncnt_write tem %i\n", sizeof(cnt_write));
+	close2(handle);
+}
+
+void write_block_2() {
+	int i;
+	for (i = 0; i < 15; i++) {
+		int N = (2^i) + 1;
+		write_block_aux(N);
+	}
+	
+	for (i = 0; i < 15; i++) {
+		int N = (2^i) + 1;
+		write_block_aux(N);
+	}
+	printf("\n");
 }
 
 void test_block() {
@@ -114,39 +147,15 @@ void test_block() {
 	
 	ut_close(handle, "Teste para fechar arquivo valido", 0);
 	
-	write_block();
-	write_block();
+	write_block_1();
+	write_block_2();
 	printf("\n");
 }
 
 int main() {
 	
-	/*test_block();
-	test_block();*/
+	test_block();
+	test_block();
 	
-	//print_disk();
-
-	int handle = open2("file1.txt");
-	
-	char content[200];
-	printf("\nVOU DAR READ");
-	read2(handle, content, 150);
-	printf("\n%s", content);
-	
-	printf("\nVOU DAR WRITE");
-	char *cnt_write = "XXXXXXXXXX";
-	seek2(handle, 4);
-	write2(handle, cnt_write, 3);
-	seek2(handle, 53);
-	write2(handle, cnt_write, 5);
-	
-	char content1[200];
-	printf("\nVOU DAR READ");
-	seek2(handle, 0);
-	read2(handle, content1, 150);
-	printf("\n%s", content1);
-
-	printf("\n");
-	print_disk();
 	return 0;
 }

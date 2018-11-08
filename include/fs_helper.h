@@ -246,6 +246,8 @@ int save_as_opened(Record record, char* path);
 **/
 void set_value_to_fat(int position, DWORD value);
 
+void print_fat();
+
 // Funções para ajudar a visualizar o fs
 void print_disk();
 void print_superblock();

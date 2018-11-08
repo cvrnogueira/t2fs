@@ -66,6 +66,14 @@ void set_local_fat() {
     }
 }
 
+void print_fat() {
+    int i;
+    printf("\n");
+    for (i = 0; i < 50; i++) {
+        printf("%d: %02X\n", i, local_fat[i]);
+    }
+}
+
 /**
  * Save a dword on a given position of local FAT
  * Also update the FAT on disk according to the local FAT

@@ -34,8 +34,7 @@ FILE2 create2 (char *filename) {
 
     // find first free fat physical sector entry
     int p_free_sector = phys_fat_first_fit();
-    //printf("\nFREE SECTOR ON CREATE2 = %i", p_free_sector);
-
+    
     // create the record for the new file
     Record file;
     file.TypeVal = TYPEVAL_REGULAR;
@@ -178,8 +177,7 @@ int delete2 (char *filename) {
 
         // convert physical fat sector entry to logical fat sector entry
     int l_fat_file_sector = fat_phys_to_log(file.firstCluster);
-    //printf("\nFILE SECTOR ON DELETE2 = %i", file.firstCluster);
-
+    
     // read from logical sector and fill up buffer
     can_read_write = read_sector(l_fat_file_sector, buffer);
 
@@ -204,6 +202,7 @@ int delete2 (char *filename) {
 }
 
 FILE2 open2 (char *filename) {
+
 	// extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(filename, path);
@@ -316,7 +315,8 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	// total number of cluster = file size in bytes / cluster size in bytes
 	// ceil is used because if a cluster has 1024bytes and a file has 1025,
 	//		then 2 clusters are necessary
-	int file_total_clusters = ceil((float) (total_bytes / cluster_size));
+	int file_total_clusters = ceil(((float) total_bytes) / cluster_size);
+	
 	// here we find out how many clusters need be allocated
 	int file_clusters_to_alloc = file_total_clusters - file.clustersFileSize;
 	// number of clusters really allocated
@@ -330,14 +330,15 @@ int write2 (FILE2 handle, char *buffer, int size) {
 		for (fat_index = 0; fat_index < file_clusters_to_alloc; fat_index++) {
 			int new_fit = phys_fat_first_fit();
 			if (new_fit != ERROR) {
-				local_fat[fat_last_index] = new_fit;
+				set_value_to_fat(fat_last_index, new_fit);
+				set_value_to_fat(new_fit, EOF);
 				fat_last_index = new_fit;
 				file_clusters_allocated++;
 			} else {
 				break;
 			}
 		}
-		local_fat[fat_last_index] = EOF;
+		set_value_to_fat(fat_last_index, EOF);
 	}
 
 	// creates a buffer to read the content
