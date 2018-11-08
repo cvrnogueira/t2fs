@@ -40,7 +40,7 @@ LIB=$(LIB_DIR)/libt2fs.a
 LC_FLAGS=-Wall -g -I$(INC_DIR)
 
 # shell compiler flags
-SC_FLAGS=-Wall -g -I$(INC_DIR) -L$(LIB_DIR) -lt2fs
+SC_FLAGS=-Wall -g -I$(INC_DIR) -L$(LIB_DIR) -lt2fs -lm
 
 all: $(BIN)
 	ar -cvq $(LIB) $^

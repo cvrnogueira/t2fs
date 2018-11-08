@@ -530,7 +530,36 @@ int rmdir2 (char *pathname) {
     return SUCCESS;
 }
 
+/**
+ * Change current directory to pathname. 
+ *
+ * param pathname - absolute or relative path
+ * 
+ * returns - SUCCESS if directory was changed FALSE otherwise.
+**/
 int chdir2 (char *pathname) {
+    // extract path head and tail
+    Path *path = malloc(sizeof(Path));
+    path_from_name(pathname, path);
+
+    // check if path exists
+    int valid = does_name_exists(path->both);
+
+    // unable to locate parent path in disk or
+    // current name exists in disk
+    // then return an error
+    if (!valid) {
+        printf("error - path doesnt exist\n");
+        return ERROR;
+    }
+
+    // find parent directory by tail
+    Record dir;
+    lookup_parent_descriptor_by_name(path->both, &dir);
+
+    // set current directory to path already found
+    curr_dir = dir.firstCluster;
+
     return SUCCESS;
 }
 
