@@ -241,6 +241,7 @@ int read2 (FILE2 handle, char *buffer, int size) {
 
 	// copy the read content to the buffer
 	memcpy(buffer, &content[current_pointer], size);
+    //printf("\nBUFFER HAS %s", buffer);
 
 	// increases the current pointer
 	opened_files[handle].current_pointer += size;

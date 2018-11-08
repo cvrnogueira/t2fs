@@ -67,6 +67,7 @@ void set_local_fat() {
 }
 
 void print_fat() {
+    set_local_fat();
     int i;
     printf("\n");
     for (i = 0; i < 50; i++) {
@@ -82,9 +83,24 @@ void print_fat() {
 **/
 int set_value_to_fat(int position, DWORD value) {
     int index;
-    local_fat[position] = value;
-    int disk_index = 4*position/SECTOR_SIZE + superblock.pFATSectorStart;
-    return write_sector(disk_index, (unsigned char*) &local_fat[position]);
+    // calculates the number of entries per sector on FAT
+    int entries_per_sector = SECTOR_SIZE / FAT_ENTRY_SIZE;
+    // save the value on local fat
+    local_fat[position] = value;    
+
+    // loop on FAT
+    for(index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
+        // a entry has 4 bytes; a sector has 256 bytes
+        // so we have 256/4 = 64 entries per sector
+        // we can only write a sector each time, so we need to get
+        //     64 entries each time (a full sector) and write it
+        // therefore sector_index goes 0, 64, 128, 192, etc
+        int sector_index = (index - superblock.pFATSectorStart) * entries_per_sector;
+        if (write_sector(index, (unsigned char*)  &local_fat[sector_index]) == ERROR)
+            return ERROR;
+    }
+
+    return SUCCESS;
 }
 
 /**

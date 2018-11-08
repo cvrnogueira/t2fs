@@ -155,7 +155,6 @@ void test_block() {
 	write_block_2("foo");
 	close2(handle);
 	delete2("foo");
-
 	handle = ut_create(0, "Teste para criar arquivo novo valido", "dir1/foo");
 	write_block_2("dir1/foo");
 	close2(handle);
@@ -168,5 +167,7 @@ int main() {
 	
 	test_block();
 	test_block();
+
+	print_fat();
 	return 0;
 }
