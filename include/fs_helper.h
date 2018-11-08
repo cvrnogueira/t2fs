@@ -70,6 +70,7 @@ BYTE buffer[SECTOR_SIZE];
 typedef struct {
 	char head[MAX_PATH_SIZE];
 	char tail[MAX_PATH_SIZE];
+	char both[MAX_PATH_SIZE];
 } Path;
 
 typedef struct {

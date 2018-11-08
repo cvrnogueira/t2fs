@@ -9,7 +9,9 @@ int main() {
 
 	print_disk();
 
-	mkdir2("/folder_cat");
+	//mkdir2("/folder_cat");
+	chdir2("dir1");
+	//chdir2("./folder_cat/home");
 
 	return 0;
 }

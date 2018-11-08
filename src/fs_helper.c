@@ -437,20 +437,23 @@ void path_from_name(char *name, Path *result) {
     // arrays that will fill path struct later on
     char head[name_len]; 
     char tail[name_len];
+    char both[name_len];
 
     // empty string arrays
     head[0] = 0;
     tail[0] = 0;
+    both[0] = 0;
 
-    // extract first character from name parameter
+    // extract first and second character from name parameter
     char fst_char_raw = *((BYTE*) name);
+    char snd_char_raw = *((BYTE*) name + 1);
 
     // check if first character of name parameter is a dot
-    int starts_with_dot = fst_char_raw == '.';
+    int starts_with_dot_slash = fst_char_raw == '.' && snd_char_raw == '/';
 
     // remove dot from path if name parameter
     // starts with it
-    char *sanitized_name = starts_with_dot ? name + 1 : name;
+    char *sanitized_name = starts_with_dot_slash ? name + 1 : name;
 
     // create an auxiliary array from name
     // acting as a buffer to strtok without
@@ -517,10 +520,24 @@ void path_from_name(char *name, Path *result) {
         } while (token != NULL);
     }
 
-    // fill with tail and head generated
+    // fill result with generated data
     // from tokenizer steps
     strncpy(result->tail, tail, strlen(tail) + 1);
     strncpy(result->head, head, strlen(head) + 1);
+
+    // concat tail
+    strncat(both, tail, strlen(tail) + 1);
+
+    // if path is relative we should not concat slashes at end
+    if (!is_relative) {
+        strncat(both, "/", 1);
+    }
+
+    // concat head
+    strncat(both, head, strlen(head) + 1);
+
+    // copy concatenation to both attribute in result structure
+    strncpy(result->both, both, strlen(both) + 1);
 }
 
 /**
