@@ -86,7 +86,8 @@ FILE2 create2 (char *filename) {
         return ERROR;
 
     // sets EOF to the found free index of FAT
-    set_value_to_fat(p_free_sector, EOF);
+    if (set_value_to_fat(p_free_sector, EOF) != SUCCESS)
+    	return ERROR;
 
     //print_disk();
     
@@ -154,7 +155,8 @@ int delete2 (char *filename) {
     	return ERROR;
 
     // free the FAT entry that the file used to use
-    set_value_to_fat(file.firstCluster, FREE_CLUSTER);
+    if (set_value_to_fat(file.firstCluster, FREE_CLUSTER) != SUCCESS)
+    	return ERROR;
 
     return SUCCESS;
 }
@@ -288,8 +290,10 @@ int write2 (FILE2 handle, char *buffer, int size) {
 		for (fat_index = 0; fat_index < file_clusters_to_alloc; fat_index++) {
 			int new_fit = phys_fat_first_fit();
 			if (new_fit != ERROR) {
-				set_value_to_fat(fat_last_index, new_fit);
-				set_value_to_fat(new_fit, EOF);
+				if (set_value_to_fat(fat_last_index, new_fit) != SUCCESS)
+					return ERROR;
+				if (set_value_to_fat(new_fit, EOF) != SUCCESS)
+					return ERROR;
 				fat_last_index = new_fit;
 				file_clusters_allocated++;
 			} else {

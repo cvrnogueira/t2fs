@@ -242,9 +242,11 @@ int save_as_opened(Record record, char* path);
 
 /**
  * Save a dword on a given position of local FAT
- * Also update the FAT on disk according to the local FAT
+ * Also update the FAT position on disk according to the local FAT
+ *
+ * Returns the result of write_sector (to raise an error, if necessary)
 **/
-void set_value_to_fat(int position, DWORD value);
+int set_value_to_fat(int position, DWORD value);
 
 void print_fat();
 

@@ -76,15 +76,15 @@ void print_fat() {
 
 /**
  * Save a dword on a given position of local FAT
- * Also update the FAT on disk according to the local FAT
+ * Also update the FAT position on disk according to the local FAT
+ *
+ * Returns the result of write_sector (to raise an error, if necessary)
 **/
-void set_value_to_fat(int position, DWORD value) {
+int set_value_to_fat(int position, DWORD value) {
     int index;
     local_fat[position] = value;
-    for (index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
-        int fat_index = (index - superblock.pFATSectorStart) * SECTOR_SIZE/4;
-        write_sector(index, (unsigned char*) &local_fat[fat_index]);
-    }
+    int disk_index = 4*position/SECTOR_SIZE + superblock.pFATSectorStart;
+    return write_sector(disk_index, (unsigned char*) &local_fat[position]);
 }
 
 /**
