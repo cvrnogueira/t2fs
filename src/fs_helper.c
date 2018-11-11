@@ -437,7 +437,7 @@ int does_name_exists(char *name) {
 /**
  * Last character in String.
  *
- * returns - last character in string or '\0' if no possible
+ * returns - last character in string or empty character (ie: (char) 0 ) if not possible
 **/
 char last_char(char *value) {
     if (value == NULL) return '\0';
