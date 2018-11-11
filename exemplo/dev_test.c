@@ -18,7 +18,7 @@ int main() {
 	// clears color buffer
 	printf("\033[0m");
 
-	/*has_errors += mkdir2("folder_cat/pablo");*/
+	has_errors += rmdir2("folder_cat");
 	has_errors += chdir2("folder_cat");
 	has_errors += chdir2("../dir1");
 	has_errors += chdir2("..");

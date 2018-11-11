@@ -11,10 +11,6 @@
  * function definition
 -----------------------------------------------------------------------------*/
 
-int identify2 (char *name, int size) {
-    return SUCCESS;
-}
-
 FILE2 create2 (char *filename) {
     // stores if read and write was successfull
     int can_read_write = SUCCESS;
@@ -372,10 +368,6 @@ int write2 (FILE2 handle, char *buffer, int size) {
     return size;
 }
 
-int truncate2 (FILE2 handle) {
-    return SUCCESS;
-}
-
 int seek2 (FILE2 handle, DWORD offset) {
 	// Check if handle is inside of boundaries
 	if (handle < 0)
@@ -398,6 +390,25 @@ int seek2 (FILE2 handle, DWORD offset) {
 }
 
 /**
+ * Return author names.
+ * 
+ * returns - SUCCESS if possible FALSE otherwise. 
+ **/
+int identify2 (char *name, int size) {
+    char *group = "Catarina Nogueira 00245534\nJoão Camargo 00274722\nArthur Balbao 00228702\n\0";
+    
+    if (size < strlen(group)) {
+        return ERROR;
+    }
+    
+    strncpy(name, group, size - 1);
+    
+    name[size] = '\0';
+    
+    return SUCCESS;
+}
+
+/**
  * Creates a new directory. 
  *
  * param pathname - absolute or relative path for new directory
@@ -414,7 +425,7 @@ int mkdir2 (char *pathname) {
 
     // make sure parent path exists and
     // current name doesnt exists 
-    int valid = does_name_exists(path->tail) && !does_name_exists(path->head);
+    int valid = does_name_exists(path->tail) && !does_name_exists(path->both);
 
     // unable to locate parent path in disk or
     // current name exists in disk
@@ -528,6 +539,9 @@ int mkdir2 (char *pathname) {
     // write buffer within logical data sector
     write_sector(l_data_free_sector, buffer);
 
+    // refresh local fat
+    set_local_fat();
+
     // release resources for path
     free(path);
 
@@ -535,7 +549,70 @@ int mkdir2 (char *pathname) {
 }
 
 int rmdir2 (char *pathname) {
-    return SUCCESS;
+    // extract path head and tail
+    Path *path = malloc(sizeof(Path));
+    path_from_name(pathname, path);
+
+    print_disk();
+
+    printf("path->both %s\n", path->both);
+
+    // return error if parent path does not exists
+    if (!does_name_exists(path->both)) return ERROR;
+
+    // get the descriptor for parent dir
+    Record parent_dir;
+    lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+    // find the to-be-deleted child dir
+    Record child_dir;    
+    lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &child_dir);  
+
+    // Check if this record is a trully directory
+    if (child_dir.TypeVal != TYPEVAL_DIRETORIO) return ERROR;
+
+    // allocate a buffer for storing temp child cluster content
+    unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(child_dir.firstCluster, content);
+
+    // loop thourgh children directory to check if its empty or not
+    int i;
+    Record tmp_record;
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        printf("=========================== initiating [%d] =========================== \n", i);
+
+        // calculate cluster position
+        int position_on_cluster = i * RECORD_SIZE;
+
+        printf("position_on_cluster %d\n", position_on_cluster);
+
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
+
+        printf("children content name %s\n", tmp_record.name);
+        printf("children TypeVal %d\n", tmp_record.TypeVal);
+
+        // check if current record is parent or local (. and ..) dir refs
+        int is_parent_ref = strcmp(tmp_record.name, "..") == 0;
+        int is_local_ref  = strcmp(tmp_record.name, ".")  == 0;
+
+        printf("is_parent_ref %d\n", is_parent_ref);
+        printf("is_local_ref %d\n", is_local_ref);
+        printf("condition -> %d\n", is_parent_ref && !is_local_ref && tmp_record.TypeVal == TYPEVAL_INVALIDO);
+
+        // if not . or .. then we must abort since we cannot
+        // remove non-empty folders
+        if (!is_parent_ref && !is_local_ref && tmp_record.TypeVal != TYPEVAL_INVALIDO) {
+            printf("=========================== error [%d] =========================== \n", i);
+            return ERROR;
+        }
+
+        printf("=========================== end [%d] =========================== \n", i);
+    }
+
+    printf("finished function call\n");
+
+    return ERROR;
 }
 
 /**
@@ -592,5 +669,9 @@ int closedir2 (DIR2 handle) {
 }
 
 int ln2(char *linkname, char *filename) {
+    return SUCCESS;
+}
+
+int truncate2 (FILE2 handle) {
     return SUCCESS;
 }
