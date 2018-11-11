@@ -536,6 +536,7 @@ void path_from_name(char *name, Path *result) {
     // ite(2): tail -> /home/aluno | head -> sisop
     // ite(3): tail -> /home/aluno/sisop | head -> t2fs
     do {
+        
         if (token != NULL && strlen(head) >= 1) {
             strncat(tail, head, strlen(head) + 1);
         }
@@ -565,11 +566,16 @@ void path_from_name(char *name, Path *result) {
     // calculate head length
     int head_len = strlen(head);
 
-    // if path is relative we should not concat slashes at end
-    if (!is_relative && head_len > 0) strncat(both, "/", 1);
+    // if path is relative we should not concat slashes at end=
 
-    // concat head if not empty
-    if (head_len > 0) strncat(both, head, strlen(head) + 1);
+    // concat head if not empty and if tail is not slash-ending
+    if (head_len > 0) {
+        char tail_last_char = last_char(tail);
+
+        if (tail_last_char != '/') strncat(both, "/", 1);
+
+        strncat(both, head, strlen(head) + 1);
+    }
 
     // copy concatenation to both attribute in result structure
     strncpy(result->both, both, strlen(both) + 1);
