@@ -224,7 +224,7 @@ int lookup_descriptor_by_name(DWORD cluster, char *name, Record *record) {
             // also make sure this record is valid checking its typeval 
             // typeval_invalido means that this record is empty
             if (strcmp(desc.name, name) == 0 && desc.TypeVal != TYPEVAL_INVALIDO) {
-                
+           
                 // store record and return true since we found it
                 memcpy(record, &desc, RECORD_SIZE);
                 return TRUE;
@@ -435,6 +435,21 @@ int does_name_exists(char *name) {
 }
 
 /**
+ * Last character in String.
+ *
+ * returns - last character in string or '\0' if no possible
+**/
+char last_char(char *value) {
+    if (value == NULL) return '\0';
+
+    int value_len = strlen(value);
+
+    int idx = value_len - 1;
+
+    return idx >= 0 ? value[idx] : '\0';
+}
+
+/**
  * Splits path name into head and tail parts storing
  * it on result parameter.
  *
@@ -449,6 +464,12 @@ void path_from_name(char *name, Path *result) {
     // calculate name length
     const int name_len = strlen(name);
 
+    // validate name length
+    if (name_len <= 0) {
+        printf("error - parameter name length cannot be lower or equal than zero\n");
+        return ERROR;
+    }
+
     // allocate head, tail character
     // arrays that will fill path struct later on
     char head[name_len]; 
@@ -461,15 +482,38 @@ void path_from_name(char *name, Path *result) {
     both[0] = 0;
 
     // extract first and second character from name parameter
-    char fst_char_raw = *((BYTE*) name);
-    char snd_char_raw = *((BYTE*) name + 1);
+    char fst_char_raw = name_len > 0 ? name[0] : '\0';
+    char snd_char_raw = name_len > 1 ? name[1] : '\0';
 
-    // check if first character of name parameter is a dot
+    // is only .. without trailling slash
+    int parent_only = fst_char_raw == '.' && snd_char_raw == '.' && name_len == 2;
+
+    // check if name start with ../
+    int starts_with_dot2 = fst_char_raw == '.' && snd_char_raw == '.';
+
+    // check if name starts with ./
     int starts_with_dot_slash = fst_char_raw == '.' && snd_char_raw == '/';
 
-    // remove dot from path if name parameter
-    // starts with it
-    char *sanitized_name = starts_with_dot_slash ? name + 1 : name;
+    // remove .. or ./ from path if name parameter starts with it
+    char *sanitized_name = NULL;
+    if (starts_with_dot_slash) sanitized_name = name + 2;
+    else if (parent_only) sanitized_name = name + 2;
+    else if (starts_with_dot2) sanitized_name = name + 3;
+    else sanitized_name = name;
+
+    //  check if name starts with slash
+    int starts_with_slash = fst_char_raw == '/';
+
+    // check if name parameter is relative path
+    // eg.:
+    // curr_dir -> /home/aluno
+    // name -> t2fs or ./t2fs
+    int is_relative = starts_with_dot_slash || starts_with_dot2 || !starts_with_slash;
+
+    // after removing ./ or .. from name include it on tail so
+    // it can be used by tokenizer loop later
+    if (starts_with_dot2 || parent_only) strncat(tail, "../", 3);
+    else if (starts_with_dot_slash || !starts_with_slash) strncat(tail, "./", 2);
 
     // create an auxiliary array from name
     // acting as a buffer to strtok without
@@ -481,60 +525,34 @@ void path_from_name(char *name, Path *result) {
     // tokenize name splitting by "/"
     char *token = strtok(aux_token, "/");
 
-    // check if token is equal to name parameter
-    int is_equal = token != NULL && strcmp(token, sanitized_name) == 0;
-
-    // ignore initial slash character from sanitized name
-    // and check if token is equal to it
-    int is_eq_ignore_slash = token != NULL && strcmp(token, (sanitized_name + 1)) == 0;
-
-    // extract first character from sanitized name
-    char fst_char_san = *((BYTE*) sanitized_name);
-
-    // check if first character of sanitized name parameter 
-    // is a slash
-    int starts_with_slash = fst_char_san == '/';
-
-    // check if name parameter is relative path
+    // iterate through remaining path using tokenizer to 
+    // concating current head to tail until no 
+    // slash character is found
+    //
     // eg.:
-    // curr_dir -> /home/aluno
-    // name -> t2fs or /t2fs or ./t2fs
-    int is_relative =  (starts_with_slash && is_eq_ignore_slash) || is_equal;
+    // 
+    // name -> /home/aluno/sisop/t2fs 
+    // ite(1): tail -> /home | head -> aluno
+    // ite(2): tail -> /home/aluno | head -> sisop
+    // ite(3): tail -> /home/aluno/sisop | head -> t2fs
+    do {
+        if (token != NULL && strlen(head) >= 1) {
+            strncat(tail, head, strlen(head) + 1);
+        }
 
-    // if path is relative then set tail to ./ and head to path name
-    // eg.:
-    // curr_dir -> /home/aluno
-    // name -> t2fs or /t2fs or ./t2fs
-    // tail -> ./ | head -> t2fs
-    if (is_relative) {
-        strncpy(head, token, strlen(token) + 1);
-        strncat(tail, "./", 2);
-
-    } else {
-        // iterate through tokenizer concating current 
-        // head to tail until theres no slash character
-        // found in name path anymore
-        // eg.: 
-        // name -> /home/aluno/sisop/t2fs 
-        // ite(1): tail -> /home | head -> aluno
-        // ite(2): tail -> /home/aluno | head -> sisop
-        // ite(3): tail -> /home/aluno/sisop | head -> t2fs
-        do {
-            
-            if (token != NULL && strlen(head) >= 1) {
-                strncat(tail, head, strlen(head) + 1);
-            }
-
+        if (token != NULL) {
             strncpy(head, token, strlen(token) + 1);
+        }
 
-            token = strtok(NULL, "/");
+        token = strtok(NULL, "/");
 
-            if (token != NULL) {
-                strncat(tail, "/", 1);
-            }
+        char tail_last_char = last_char(tail);
 
-        } while (token != NULL);
-    }
+        if (token != NULL && tail_last_char != '/') {
+            strncat(tail, "/", 1);
+        }
+
+    } while (token != NULL);
 
     // fill result with generated data
     // from tokenizer steps
@@ -544,13 +562,14 @@ void path_from_name(char *name, Path *result) {
     // concat tail
     strncat(both, tail, strlen(tail) + 1);
 
-    // if path is relative we should not concat slashes at end
-    if (!is_relative) {
-        strncat(both, "/", 1);
-    }
+    // calculate head length
+    int head_len = strlen(head);
 
-    // concat head
-    strncat(both, head, strlen(head) + 1);
+    // if path is relative we should not concat slashes at end
+    if (!is_relative && head_len > 0) strncat(both, "/", 1);
+
+    // concat head if not empty
+    if (head_len > 0) strncat(both, head, strlen(head) + 1);
 
     // copy concatenation to both attribute in result structure
     strncpy(result->both, both, strlen(both) + 1);
@@ -715,7 +734,7 @@ void print_descriptor(struct t2fs_record descriptor, int tab) {
     int tabix;
     for (tabix = 0; tabix < tab; tabix++)
          printf("\t");
-    printf("%s = %u bytes (%u clusters)\n", descriptor.name, descriptor.bytesFileSize, descriptor.clustersFileSize);
+    printf("%s = %u bytes (%u clusters)  (%u custer index) \n", descriptor.name, descriptor.bytesFileSize, descriptor.clustersFileSize, descriptor.firstCluster);
 }
 
 void print_dir(int cluster, int tab) {

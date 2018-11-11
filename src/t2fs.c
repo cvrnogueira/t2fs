@@ -558,6 +558,7 @@ int chdir2 (char *pathname) {
     // then return an error
     if (!valid) {
         printf("error - path doesnt exist\n");
+        
         return ERROR;
     }
 
@@ -566,7 +567,10 @@ int chdir2 (char *pathname) {
     lookup_parent_descriptor_by_name(path->both, &dir);
 
     // set current directory to path already found
-    curr_dir = dir.firstCluster;
+    curr_dir = cluster_to_log_sector(dir.firstCluster);
+
+    // free path pointer from memmory 
+    free(path);
 
     return SUCCESS;
 }
