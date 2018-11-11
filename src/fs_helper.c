@@ -568,9 +568,12 @@ void path_from_name(char *name, Path *result) {
 
     // if path is relative we should not concat slashes at end=
 
-    // concat head if not empty
+    // concat head if not empty and if tail is not slash-ending
     if (head_len > 0) {
-        strncat(both, "/", 1);
+        char tail_last_char = last_char(tail);
+
+        if (tail_last_char != '/') strncat(both, "/", 1);
+
         strncat(both, head, strlen(head) + 1);
     }
 

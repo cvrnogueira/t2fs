@@ -14,7 +14,6 @@
 FILE2 create2 (char *filename) {
     // stores if read and write was successfull
     int can_read_write = SUCCESS;
-    //print_disk();
     
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
@@ -85,8 +84,6 @@ FILE2 create2 (char *filename) {
     if (set_value_to_fat(p_free_sector, EOF) != SUCCESS)
     	return ERROR;
 
-    //print_disk();
-    
 	// if possible, save as opened
 	// otherwise, returns a error
 	return save_as_opened(file, filename);
@@ -423,15 +420,20 @@ int mkdir2 (char *pathname) {
     Path *path = malloc(sizeof(Path));
     path_from_name(pathname, path);
 
-    // make sure parent path exists and
-    // current name doesnt exists 
-    int valid = does_name_exists(path->tail) && !does_name_exists(path->both);
-
     // unable to locate parent path in disk or
     // current name exists in disk
     // then return an error
-    if (!valid) {
-        printf("error - path doesnt exist or file name already exists\n");
+    if (!does_name_exists(path->tail)) {
+        printf("mkdir2 error - path doesnt exist\n");
+        
+        return ERROR;
+    }
+
+    // current name exists in disk so we should
+    // return an error
+    if (does_name_exists(path->both)) {
+        printf("mkdir2 error - file or directory with this name already exists\n");
+        
         return ERROR;
     }
 
@@ -445,7 +447,11 @@ int mkdir2 (char *pathname) {
     can_read_write = read_sector(l_fat_free_sector, buffer);
 
     // something bad happened, disk may be corrupted
-    if (can_read_write != SUCCESS) return ERROR;
+    if (can_read_write != SUCCESS) {
+        printf("mkdir2 error - unable to read from sector\n");
+
+        return ERROR;
+    }
 
     // calculate cluster size from free physical sector entry
     BYTE p_free_cluster = p_free_sector * superblock.SectorsPerCluster;
@@ -548,17 +554,24 @@ int mkdir2 (char *pathname) {
     return SUCCESS;
 }
 
+/**
+ * Remove an existing directory. 
+ *
+ * param pathname - absolute or relative path for directory
+ * 
+ * returns - SUCCESS if sucessfully removed FALSE otherwise.
+**/
 int rmdir2 (char *pathname) {
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(pathname, path);
 
-    print_disk();
-
-    printf("path->both %s\n", path->both);
-
     // return error if parent path does not exists
-    if (!does_name_exists(path->both)) return ERROR;
+    if (!does_name_exists(path->both)) {
+        printf("rmdir2 error - path doesnt exists\n");
+
+        return ERROR;
+    }
 
     // get the descriptor for parent dir
     Record parent_dir;
@@ -569,50 +582,85 @@ int rmdir2 (char *pathname) {
     lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &child_dir);  
 
     // Check if this record is a trully directory
-    if (child_dir.TypeVal != TYPEVAL_DIRETORIO) return ERROR;
+    if (child_dir.TypeVal != TYPEVAL_DIRETORIO) {
+        printf("rmdir2 error - this is not a directory\n");
+
+        return ERROR;
+    }
 
     // allocate a buffer for storing temp child cluster content
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
     read_cluster(child_dir.firstCluster, content);
 
     // loop thourgh children directory to check if its empty or not
+    // marking its members (only . and ..) as free entriess
     int i;
     Record tmp_record;
     for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
-        printf("=========================== initiating [%d] =========================== \n", i);
 
         // calculate cluster position
         int position_on_cluster = i * RECORD_SIZE;
 
-        printf("position_on_cluster %d\n", position_on_cluster);
-
         // Copy the current record do parent dir to tmp_record
         memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
-
-        printf("children content name %s\n", tmp_record.name);
-        printf("children TypeVal %d\n", tmp_record.TypeVal);
 
         // check if current record is parent or local (. and ..) dir refs
         int is_parent_ref = strcmp(tmp_record.name, "..") == 0;
         int is_local_ref  = strcmp(tmp_record.name, ".")  == 0;
 
-        printf("is_parent_ref %d\n", is_parent_ref);
-        printf("is_local_ref %d\n", is_local_ref);
-        printf("condition -> %d\n", is_parent_ref && !is_local_ref && tmp_record.TypeVal == TYPEVAL_INVALIDO);
-
         // if not . or .. then we must abort since we cannot
         // remove non-empty folders
         if (!is_parent_ref && !is_local_ref && tmp_record.TypeVal != TYPEVAL_INVALIDO) {
-            printf("=========================== error [%d] =========================== \n", i);
+            printf("rmdir2 error - directory is not empty\n");
+
             return ERROR;
         }
 
-        printf("=========================== end [%d] =========================== \n", i);
+        // if we are looping through . and .. we must mark it as free entires now
+        if (is_parent_ref || is_local_ref) {
+
+            // mark record as free
+            tmp_record.TypeVal = TYPEVAL_INVALIDO;
+
+            // copy current record back to data buffer so we can write
+            // it back to disk when done
+            memcpy(&content[position_on_cluster], &tmp_record, RECORD_SIZE);
+        }
     }
 
-    printf("finished function call\n");
+    // write back to disk all free entries
+    write_on_cluster(child_dir.firstCluster, content);
 
-    return ERROR;
+    // read parent dir to temp buffer
+    read_cluster(parent_dir.firstCluster, content);
+
+    // find child entry in parent cluster and mark it as free
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+        // calculate cluster position
+        int position_on_cluster = i * RECORD_SIZE;
+
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
+
+        if (strcmp(tmp_record.name, child_dir.name) == 0) {
+            tmp_record.TypeVal = TYPEVAL_INVALIDO;
+
+            // copy current modified record back to buffer
+            memcpy(&content[position_on_cluster], &tmp_record, RECORD_SIZE);
+        }
+    }
+
+    // write back to disk all free entries
+    write_on_cluster(parent_dir.firstCluster, content);
+
+    // clear fat entry of child dir
+    if (set_value_to_fat(child_dir.firstCluster, FREE_CLUSTER) != SUCCESS) {
+        printf("rmdir2 error - unable to free fat\n");
+
+        return ERROR;
+    }
+
+    return SUCCESS;
 }
 
 /**
