@@ -446,7 +446,7 @@ char last_char(char *value) {
 
     int idx = value_len - 1;
 
-    return idx >= 0 ? value[idx] : '\0';
+    return idx >= 0 ? value[idx] : (char) 0;
 }
 
 /**
@@ -482,8 +482,8 @@ void path_from_name(char *name, Path *result) {
     both[0] = 0;
 
     // extract first and second character from name parameter
-    char fst_char_raw = name_len > 0 ? name[0] : '\0';
-    char snd_char_raw = name_len > 1 ? name[1] : '\0';
+    char fst_char_raw = name_len > 0 ? name[0] : (char) 0;
+    char snd_char_raw = name_len > 1 ? name[1] : (char) 0;
 
     // is only .. without trailling slash
     int parent_only = fst_char_raw == '.' && snd_char_raw == '.' && name_len == 2;
