@@ -757,6 +757,8 @@ int write_cluster(int cluster, unsigned char *content) {
 
         if (can_read_write != SUCCESS) return ERROR;
     }
+
+    return SUCCESS;
 }
 
 /**
