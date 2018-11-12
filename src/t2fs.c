@@ -7,17 +7,18 @@
 #include "../include/t2fs.h"
 #include "../include/fs_helper.h"
 
-/*-----------------------------------------------------------------------------
- * function definition
------------------------------------------------------------------------------*/
-
+/**
+ * Creates a new archive.
+ * 
+ * returns - File handle if possible (positive number) ERROR otherwise. 
+ **/
 FILE2 create2 (char *filename) {
-    // stores if read and write was successfull
-    int can_read_write = SUCCESS;
-    
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(filename, path);
+    if (path_from_name(filename, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // return error if parent path does not exists
     if (!does_name_exists(path->tail))
@@ -93,12 +94,12 @@ FILE2 create2 (char *filename) {
 }
 
 int delete2 (char *filename) {
-    // stores if read and write was successfull
-    int can_read_write = SUCCESS;
-
 	// extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(filename, path);
+    if (path_from_name(filename, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // return error if parent path does not exists
     if (!does_name_exists(path->tail))
@@ -165,10 +166,12 @@ int delete2 (char *filename) {
 }
 
 FILE2 open2 (char *filename) {
-
 	// extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(filename, path);
+    if (path_from_name(filename, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // return error if parent path does not exists
     if (!does_name_exists(path->tail))
@@ -274,17 +277,19 @@ int write2 (FILE2 handle, char *buffer, int size) {
 
 	if (size_with_write > file.bytesFileSize) {
 		content_size += size;
-		// if this happebsm ten total_bytes need to be updated
+		
+        // if this happens then total_bytes need to be updated
 		total_bytes = size_with_write;
 	}
 
 	// total number of cluster = file size in bytes / cluster size in bytes
 	// ceil is used because if a cluster has 1024bytes and a file has 1025,
-	//		then 2 clusters are necessary
+	// then 2 clusters are necessary
 	int file_total_clusters = ceil(((float) total_bytes) / cluster_size);
 	
 	// here we find out how many clusters need be allocated
 	int file_clusters_to_alloc = file_total_clusters - file.clustersFileSize;
+
 	// number of clusters really allocated
 	int file_clusters_allocated = 0;
 
@@ -333,7 +338,10 @@ int write2 (FILE2 handle, char *buffer, int size) {
 
 	// we need the path to get the parent folder
 	Path *path = malloc(sizeof(Path));
-    path_from_name(opened_files[handle].path, path); 
+    if (path_from_name(opened_files[handle].path, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
 	// we need the parent folder to update the record
 	Record parent_dir;
@@ -341,7 +349,6 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	
 	// Here we update the entry of the file on the parent directory
     // buffer to read the content of parent dir cluster
-   
 	unsigned char parent_content[SECTOR_SIZE * superblock.SectorsPerCluster];
     if (read_cluster(parent_dir.firstCluster, parent_content) != SUCCESS) return ERROR;
 
@@ -388,8 +395,7 @@ int seek2 (FILE2 handle, DWORD offset) {
 		return ERROR;
 
 	// update the current_pointer of the passed handle
-	opened_files[handle].current_pointer = (offset == -1) ? 
-			opened_files[handle].file.bytesFileSize : offset; 
+	opened_files[handle].current_pointer = (offset == -1) ? opened_files[handle].file.bytesFileSize : offset; 
 
 	return SUCCESS;
 }
@@ -426,7 +432,10 @@ int mkdir2 (char *pathname) {
 
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(pathname, path);
+    if (path_from_name(pathname, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // unable to locate parent path in disk or
     // current name exists in disk
@@ -569,7 +578,10 @@ int mkdir2 (char *pathname) {
 int rmdir2 (char *pathname) {
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(pathname, path);
+    if (path_from_name(pathname, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // return error if parent path does not exists
     if (!does_name_exists(path->both)) {
@@ -679,7 +691,10 @@ int chdir2 (char *pathname) {
 
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
-    path_from_name(pathname, path);
+    if (path_from_name(pathname, path) != SUCCESS) {
+        free(path);
+        return ERROR;
+    }
 
     // check if path exists
     int valid = does_name_exists(path->both);
@@ -739,13 +754,11 @@ int getcwd2 (char *name, int size) {
     lookup_descriptor_by_cluster(curr_cluster, &tmp_dir);
 
     // prepend current directory name to curr_name
-    str_prepend(&curr_name, tmp_dir.name);
-    str_prepend(&curr_name, "/");
+    str_prepend(curr_name, tmp_dir.name);
+    str_prepend(curr_name, "/");
 
     // loop thourgh children directory to check if its empty or not
     // marking its members (only . and ..) as free entriess
-    int i;
-
     while (tmp_dir.firstCluster != superblock.RootDirCluster) {
         lookup_descriptor_by_name(tmp_dir.firstCluster, "..", &tmp_dir);
 
@@ -755,8 +768,8 @@ int getcwd2 (char *name, int size) {
         // prepend current directory name to curr_name
         // and make sure to not append root reference
         if (strcmp(tmp_dir.name, ".") != 0) { 
-            str_prepend(&curr_name, tmp_dir.name);
-            str_prepend(&curr_name, "/");
+            str_prepend(curr_name, tmp_dir.name);
+            str_prepend(curr_name, "/");
         }
     }
 
@@ -769,7 +782,7 @@ int getcwd2 (char *name, int size) {
     }
 
     // store curr_name in name parameter
-    strncpy(name, &curr_name, curr_name_len);
+    strncpy(name, curr_name, curr_name_len);
 
     return SUCCESS;
 }

@@ -40,7 +40,6 @@ static void initialize(void) {
  * This function is declared here because is not supposed 
  * to be accessed from outside.
 */
-int set_local_fat();
 int set_local_fat() {
     // allocate the necessary memory for a local instance of FAT
     local_fat = malloc(SECTOR_SIZE * superblock.DataSectorStart - superblock.pFATSectorStart);
@@ -461,14 +460,14 @@ void str_prepend(char *str1, char *str2) {
  *  tail -> /home/aluno/sisop 
  *  head -> t2fs
 **/
-void path_from_name(char *name, Path *result) {
+int path_from_name(char *name, Path *result) {
     // if name is only slash then we dont need to worry
     // about extracting path we can just set curr_dir to
     // root dir cluster
     if (strcmp(name, "/") == 0) {
         strncpy(result->tail, "/", 1);
 
-        return;
+        return SUCCESS;
     }
 
     // calculate name length
@@ -512,12 +511,6 @@ void path_from_name(char *name, Path *result) {
 
     //  check if name starts with slash
     int starts_with_slash = fst_char_raw == '/';
-
-    // check if name parameter is relative path
-    // eg.:
-    // curr_dir -> /home/aluno
-    // name -> t2fs or ./t2fs
-    int is_relative = starts_with_dot_slash || starts_with_dot2 || !starts_with_slash;
 
     // after removing ./ or .. from name include it on tail so
     // it can be used by tokenizer loop later
@@ -588,6 +581,8 @@ void path_from_name(char *name, Path *result) {
 
     // copy concatenation to both attribute in result structure
     strncpy(result->both, both, strlen(both) + 1);
+
+    return SUCCESS;
 }
 
 
@@ -831,10 +826,13 @@ void print_descriptor(struct t2fs_record descriptor, int tab) {
 /**
  * Helper functions to print data, fat and super blocks from disk.
 **/
-void print_dir(int cluster, int tab) {
-   int cluster_size = SECTOR_SIZE * superblock.SectorsPerCluster;
-    char result[cluster_size];
+void print_dir(DWORD cluster, int tab) {
+    int cluster_size = SECTOR_SIZE * superblock.SectorsPerCluster;
+    
+    BYTE result[cluster_size];
+    
     struct t2fs_record descriptor;  
+    
     int index; // Descriptor index
 
     read_cluster(cluster, result);
@@ -842,10 +840,14 @@ void print_dir(int cluster, int tab) {
     // 64 = tamanho da estrutura t2fs_record
     for(index = 0; index < cluster_size / 64; index++) {
         memcpy(&descriptor, &result[index * 64], sizeof(descriptor));
-	if (descriptor.TypeVal != TYPEVAL_INVALIDO)
+	
+        if (descriptor.TypeVal != TYPEVAL_INVALIDO) {
             print_descriptor(descriptor, tab);
-        if (descriptor.TypeVal == TYPEVAL_DIRETORIO && index > 1)
+        }
+        
+        if (descriptor.TypeVal == TYPEVAL_DIRETORIO && index > 1) {
             print_dir(descriptor.firstCluster, tab+1);
+        }
     }
 }
 
