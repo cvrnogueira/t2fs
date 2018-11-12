@@ -6,12 +6,6 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
-/*
- * This function is declared here
- * because is not supposed to be accessed from outside
-*/
-void set_local_fat();
-
 /**
  * Called by gcc attributes before main execution and responsible for
  * global vars initialization
@@ -40,39 +34,35 @@ static void initialize(void) {
     set_local_fat();
 }
 
-/**
+/*
+ *  Refresh in-memmory fat table.
  *
- *
-**/
-int get_num_sectors() {
-    return superblock.DataSectorStart - superblock.pFATSectorStart;
-}
-
-/**
- * 
- *
-**/
-void set_local_fat() {
+ * This function is declared here because is not supposed 
+ * to be accessed from outside.
+*/
+int set_local_fat();
+int set_local_fat() {
     // allocate the necessary memory for a local instance of FAT
-    local_fat =  malloc (SECTOR_SIZE * get_num_sectors());
+    local_fat = malloc(SECTOR_SIZE * superblock.DataSectorStart - superblock.pFATSectorStart);
+    
     int index;
+
+    int can_read_write = SUCCESS;
+
     // temp variable to save the content of a sector
     unsigned char sector_content[SECTOR_SIZE];
 
     for (index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
         int fat_index = (index - superblock.pFATSectorStart) * SECTOR_SIZE/4;
-        read_sector(index, sector_content);
+        
+        can_read_write = read_sector(index, sector_content);
+        
+        if (can_read_write != SUCCESS) return ERROR;
+
         memcpy(&local_fat[fat_index], sector_content, SECTOR_SIZE);
     }
-}
 
-void print_fat() {
-    set_local_fat();
-    int i;
-    printf("\n");
-    for (i = 0; i < 20; i++) {
-        printf("%d: %02X\n", i, local_fat[i]);
-    }
+    return SUCCESS;
 }
 
 /**
@@ -211,7 +201,7 @@ int lookup_descriptor_by_name(DWORD cluster, char *name, Record *record) {
         int i = 0;
 
         // read our cluster sectors
-        read_sector(sector, buffer);
+        if (read_sector(sector, buffer) != SUCCESS) return ERROR;
 
         // loop through records of current sector
         while(i < nr_of_records) {
@@ -279,7 +269,7 @@ DWORD lookup_cont_record_by_type(DWORD cluster, BYTE type) {
         int i = 0;
 
         // read our cluster sectors
-        read_sector(sector, buffer);
+        if (read_sector(sector, buffer) != SUCCESS) return ERROR;
 
         // loop through records of current sector
         while(i < nr_of_records) {
@@ -674,7 +664,7 @@ DWORD fat_phys_to_log(DWORD psector) {
  * Finds first free physical entry in FAT.
  * 
  * returns  - physical entry index since first sector in FAT.
- * on error - returns -1 if cant read fat partition or theres no free entry.
+ * on error - returns ERROR if cant read fat partition or theres no free entry.
 **/
 DWORD phys_fat_first_fit(void) {
     int sector = 0;
@@ -730,28 +720,42 @@ DWORD phys_fat_first_fit(void) {
 }
 
 /**
- * Receives a cluster and a result buffer
+ * Read logical cluster and saves its content to the result buffer
  *
- * Saves the content of the cluster on the result buffer
+ * on error - returns ERROR if cant read from cluster otherwise SUCCESS.
 **/
-void read_cluster(int cluster, unsigned char *result) {
+int read_cluster(int cluster, unsigned char *result) {
     int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
+    
     int sector_index;
+    
+    int can_read_write = SUCCESS;
+
     for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
-        read_sector(starting_sector + sector_index, &result[sector_index * SECTOR_SIZE]);
+        can_read_write = read_sector(starting_sector + sector_index, &result[sector_index * SECTOR_SIZE]);
+
+        if (can_read_write != SUCCESS) return ERROR;
     }
+
+    return SUCCESS;
 }
 
 /**
- * Receives a cluster and a content buffer
+ * Writes content to logical cluster
  *
- * Saves the content of the buffer on the cluster
+ * on error - returns ERROR if cant write to cluster otherwise SUCCESS.
 **/
-void write_on_cluster(int cluster, unsigned char *content) {
+int write_cluster(int cluster, unsigned char *content) {
     int starting_sector = superblock.DataSectorStart + cluster * superblock.SectorsPerCluster;
+    
     int sector_index;
+
+    int can_read_write = SUCCESS;
+
     for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
-        write_sector(starting_sector + sector_index, &content[sector_index * SECTOR_SIZE]);
+        can_read_write = write_sector(starting_sector + sector_index, &content[sector_index * SECTOR_SIZE]);
+
+        if (can_read_write != SUCCESS) return ERROR;
     }
 }
 
@@ -781,12 +785,16 @@ int save_as_opened(Record record, char* path) {
         if (opened_files[i].is_used == FALSE) {
             // copy to the free position found
             memcpy(&(opened_files[i].file), &record, sizeof(Record));
+            
             // set the position as used
             opened_files[i].is_used = TRUE;
+            
             // set current pointer on the start of the file
             opened_files[i].current_pointer = 0;
+            
             // set path to the record
             opened_files[i].path = path;
+            
             // increase the opened files counter
             num_opened_files++;
             return i;
@@ -796,7 +804,21 @@ int save_as_opened(Record record, char* path) {
     return ERROR;
 }
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
+void print_fat() {
+    set_local_fat();
+    int i;
+    printf("\n");
+    for (i = 0; i < 20; i++) {
+        printf("%d: %02X\n", i, local_fat[i]);
+    }
+}
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
 void print_descriptor(struct t2fs_record descriptor, int tab) {
     int tabix;
     for (tabix = 0; tabix < tab; tabix++)
@@ -804,6 +826,9 @@ void print_descriptor(struct t2fs_record descriptor, int tab) {
     printf("%s = %u bytes (%u clusters)  (%u custer index) \n", descriptor.name, descriptor.bytesFileSize, descriptor.clustersFileSize, descriptor.firstCluster);
 }
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
 void print_dir(int cluster, int tab) {
    int cluster_size = SECTOR_SIZE * superblock.SectorsPerCluster;
     char result[cluster_size];
@@ -822,11 +847,17 @@ void print_dir(int cluster, int tab) {
     }
 }
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
 void print_disk() {
     printf("\nDISK\n");
     print_dir(superblock.RootDirCluster, 0);
 }
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
 void print_superblock() {
     printf("\nSUPERBLOCK\n");
     printf("- id -> %.4s\n", superblock.id);
