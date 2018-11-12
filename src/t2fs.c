@@ -88,6 +88,9 @@ FILE2 create2 (char *filename) {
     if (set_value_to_fat(p_free_sector, EOF) != SUCCESS)
     	return ERROR;
 
+    // release resources for path
+    free(path);
+
 	// if possible, save as opened
 	// otherwise, returns a error
 	return save_as_opened(file, filename);
@@ -162,6 +165,9 @@ int delete2 (char *filename) {
         cluster_to_delete = tmp_cluster;
     }
 
+    // release resources for path
+    free(path);
+
     return SUCCESS;
 }
 
@@ -191,6 +197,9 @@ FILE2 open2 (char *filename) {
 	if (!(file.TypeVal == TYPEVAL_REGULAR || file.TypeVal == TYPEVAL_LINK))
 		// Is not a regular file or softlink
 		return ERROR;
+
+    // release resources for path
+    free(path);
 
 	// if possible, save as opened
 	// otherwise, returns a error
@@ -376,6 +385,8 @@ int write2 (FILE2 handle, char *buffer, int size) {
     // update the register on opened_files
     opened_files[handle].file = file;
 
+    // release resources for path
+    free(path);
 
     return size;
 }
