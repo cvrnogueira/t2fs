@@ -435,7 +435,7 @@ int does_name_exists(char *name) {
 }
 
 /**
- * Last character in String.
+ * Last character in string.
  *
  * returns - last character in string or empty character (ie: (char) 0 ) if not possible
 **/
@@ -450,6 +450,17 @@ char last_char(char *value) {
 }
 
 /**
+ * Prepend str2 in str1.
+**/
+void str_prepend(char *str1, char *str2) {
+    char *tmp = strdup(str1);
+
+    strncpy(str1, str2, strlen(str2) + 1);
+
+    strncat(str1, tmp, strlen(tmp));
+}
+
+/**
  * Splits path name into head and tail parts storing
  * it on result parameter.
  *
@@ -461,6 +472,15 @@ char last_char(char *value) {
  *  head -> t2fs
 **/
 void path_from_name(char *name, Path *result) {
+    // if name is only slash then we dont need to worry
+    // about extracting path we can just set curr_dir to
+    // root dir cluster
+    if (strcmp(name, "/") == 0) {
+        strncpy(result->tail, "/", 1);
+
+        return;
+    }
+
     // calculate name length
     const int name_len = strlen(name);
 
@@ -579,6 +599,40 @@ void path_from_name(char *name, Path *result) {
 
     // copy concatenation to both attribute in result structure
     strncpy(result->both, both, strlen(both) + 1);
+}
+
+int lookup_descriptor_by_cluster(DWORD cluster, Record *record) {
+    // find parent directory by .. logical reference
+    Record parent_dir;
+    lookup_descriptor_by_name(cluster, "..", &parent_dir);
+
+    // allocate a buffer for storing cluster content
+    unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(parent_dir.firstCluster, content);
+
+    // loop thourgh parent directory to our entry
+    int i;
+    Record tmp_record;
+    for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+
+        // calculate cluster position
+        int position_on_cluster = i * RECORD_SIZE;
+
+        // Copy the current record do parent dir to tmp_record
+        memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
+
+        // check if current entry is equals to cluster then we 
+        // have our record
+        if (tmp_record.firstCluster == cluster) {
+            memcpy(record, &tmp_record, RECORD_SIZE);
+
+            return SUCCESS;
+        }
+
+    }
+
+    // unable to find record then return error
+    return ERROR;
 }
 
 /**
