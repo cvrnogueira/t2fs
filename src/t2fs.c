@@ -425,6 +425,7 @@ int mkdir2 (char *pathname) {
     // then return an error
     if (!does_name_exists(path->tail)) {
         printf("mkdir2 error - path doesnt exist\n");
+        printf("mkdir2 error - directory name = %s\n\n", path->tail);
         
         return ERROR;
     }
@@ -433,7 +434,8 @@ int mkdir2 (char *pathname) {
     // return an error
     if (does_name_exists(path->both)) {
         printf("mkdir2 error - file or directory with this name already exists\n");
-        
+        printf("mkdir2 error - directory name = %s\n\n", path->both);
+
         return ERROR;
     }
 
@@ -568,7 +570,8 @@ int rmdir2 (char *pathname) {
 
     // return error if parent path does not exists
     if (!does_name_exists(path->both)) {
-        printf("rmdir2 error - path doesnt exists\n");
+        printf("rmdir2 error - directory doesnt exists\n");
+        printf("rmdir2 error - directory name = %s\n\n", path->both);
 
         return ERROR;
     }
@@ -584,6 +587,7 @@ int rmdir2 (char *pathname) {
     // Check if this record is a trully directory
     if (child_dir.TypeVal != TYPEVAL_DIRETORIO) {
         printf("rmdir2 error - this is not a directory\n");
+        printf("rmdir2 error - directory name = %s\n\n", path->both);
 
         return ERROR;
     }
@@ -611,7 +615,7 @@ int rmdir2 (char *pathname) {
         // if not . or .. then we must abort since we cannot
         // remove non-empty folders
         if (!is_parent_ref && !is_local_ref && tmp_record.TypeVal != TYPEVAL_INVALIDO) {
-            printf("rmdir2 error - directory is not empty\n");
+            printf("rmdir2 error - directory [%s] is not empty, entry [%s] was found\n", path->both, tmp_record.name);
 
             return ERROR;
         }
@@ -656,6 +660,7 @@ int rmdir2 (char *pathname) {
     // clear fat entry of child dir
     if (set_value_to_fat(child_dir.firstCluster, FREE_CLUSTER) != SUCCESS) {
         printf("rmdir2 error - unable to free fat\n");
+        printf("rmdir2 error - directory name = %s\n\n", path->both);
 
         return ERROR;
     }
@@ -671,6 +676,15 @@ int rmdir2 (char *pathname) {
  * returns - SUCCESS if directory was changed FALSE otherwise.
 **/
 int chdir2 (char *pathname) {
+    // if pathname is only slash then we dont need to worry
+    // about extracting path we can just set curr_dir to
+    // root dir cluster
+    if (strcmp(pathname, "/") == 0) {
+        curr_dir = cluster_to_log_sector(superblock.RootDirCluster);
+
+        return SUCCESS;
+    }
+
     // extract path head and tail
     Path *path = malloc(sizeof(Path));
     path_from_name(pathname, path);
@@ -700,7 +714,68 @@ int chdir2 (char *pathname) {
     return SUCCESS;
 }
 
-int getcwd2 (char *pathname, int size) {
+int getcwd2 (char *name, int size) {
+    // allocate name array that we will return at end
+    char curr_name[MAX_PATH_SIZE];
+
+    // clear curr_name
+    memset(curr_name, 0x00, MAX_PATH_SIZE);
+
+    // get current directory cluster
+    DWORD curr_cluster = curr_data_cluster();
+
+    // allocate a buffer for storing temp child cluster content
+    unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+    read_cluster(curr_cluster, content);
+    
+    // name must be equal or greater than 2 since we must fill it with
+    // atleast a slash and a string terminator character '\0'
+    if (size < 2) {
+        printf("getcwd2 error - size must be greater than 1 since we will be atleast in / directory\n");
+
+        return ERROR;
+    }
+
+    // we are in root directory then we can return slash
+    if (curr_cluster == superblock.RootDirCluster) {
+        name[0] = '/';
+        name[1] = '\0';
+        
+        return SUCCESS;
+    }
+
+    // store current directory record
+    Record tmp_dir;
+
+    // retrieve current directory record and store in tmp_dir
+    lookup_descriptor_by_cluster(curr_cluster, &tmp_dir);
+
+    // prepend current directory name to curr_name
+    str_prepend(&curr_name, tmp_dir.name);
+    str_prepend(&curr_name, "/");
+
+    // loop thourgh children directory to check if its empty or not
+    // marking its members (only . and ..) as free entriess
+    int i;
+
+    while (tmp_dir.firstCluster != superblock.RootDirCluster) {
+        lookup_descriptor_by_name(tmp_dir.firstCluster, "..", &tmp_dir);
+
+        // retrieve current directory record and store in tmp_dir
+        lookup_descriptor_by_cluster(tmp_dir.firstCluster, &tmp_dir);
+
+        // prepend current directory name to curr_name
+        // and make sure to not append root reference
+        if (strcmp(tmp_dir.name, ".") != 0) { 
+            str_prepend(&curr_name, tmp_dir.name);
+            str_prepend(&curr_name, "/");
+        }
+    }
+
+    int curr_name_len = strlen(curr_name);
+
+    strncpy(name, &curr_name, curr_name_len);
+
     return SUCCESS;
 }
 

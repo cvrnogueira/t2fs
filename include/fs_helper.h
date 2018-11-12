@@ -58,7 +58,6 @@ typedef struct t2fs_record Record;
 /***************************************************************************
 * global variables and structs
 ***************************************************************************/
-
 Superblock superblock;
 
 DWORD curr_dir;
@@ -249,8 +248,9 @@ int save_as_opened(Record record, char* path);
 **/
 int set_value_to_fat(int position, DWORD value);
 
+/**
+ * Helper functions to print data, fat and super blocks from disk.
+**/
 void print_fat();
-
-// Funções para ajudar a visualizar o fs
 void print_disk();
 void print_superblock();

@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+// define max size of name
+#define NAME_SIZE 4096
+
 int main() {
 	printf("\n\n");
 
@@ -11,7 +14,7 @@ int main() {
 
 	printf("EXECUTING DEVELOPMENT TESTS\n[TEST OUTPUT ERROR = 1 SUCCESS = 0]\n");
 	
-	printf("==============================================================================\n");
+	printf("==============================================================================\n\n");
 
 	// flag to check number of errors during test execution
 	int has_errors = 0; 
@@ -21,6 +24,9 @@ int main() {
 
 	// make sure dir5 exists doesnt matter what
 	has_errors += mkdir2("dir5");
+	has_errors += mkdir2("dir5/dir6");
+	has_errors += mkdir2("dir5/dir6/dir7");
+	has_errors += mkdir2("dir5/dir6/dir7/dir8");
 	has_errors = 0;
 
 	// create and remove same dir
@@ -49,6 +55,51 @@ int main() {
 	// go back to root 
 	has_errors += chdir2("..");
 
+	// alocate name to use in getcwd2
+	char* name = malloc(sizeof(char) * NAME_SIZE);
+
+	// get current working directory as string
+	has_errors += getcwd2(name, NAME_SIZE);
+	
+	// since we are in root dir make sure getcwd2 returned / as its result
+	has_errors += strcmp(name, "/");
+
+	// change to ./dir5/dir6/dir7/dir8
+	has_errors += chdir2("./dir5/dir6/dir7/dir8");
+
+	// clear name
+	memset(name, 0x00, NAME_SIZE);
+
+	// get current working directory as string
+	has_errors += getcwd2(name, NAME_SIZE);
+	
+	// make sure getcwd2 matches with current directory
+	has_errors += strcmp(name, "/dir5/dir6/dir7/dir8");
+
+	// clear name
+	memset(name, 0x00, NAME_SIZE);
+
+	// change to root
+	has_errors += chdir2("/");
+
+	// get current working directory as string
+	has_errors += getcwd2(name, NAME_SIZE);
+
+	// make sure getcwd2 matches with current directory
+	has_errors += strcmp(name, "/");
+
+	// clear name
+	memset(name, 0x00, NAME_SIZE);
+
+	// change to dir6
+	has_errors += chdir2("dir5/dir6");
+
+	// get current working directory as string
+	has_errors += getcwd2(name, NAME_SIZE);
+
+	// make sure getcwd2 matches with current directory
+	has_errors += strcmp(name, "/dir5/dir6");
+
 	printf("\n\n");
 
 	// print test success in green errors in red
@@ -57,6 +108,8 @@ int main() {
 
 	// clears color buffer
 	printf("\033[0m\n\n");
+
+	free(name);
 
 	return 0;
 }
