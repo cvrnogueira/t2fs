@@ -99,6 +99,9 @@ int main() {
 	// make sure getcwd2 matches with current directory
 	has_errors += strcmp(name, "/dir5/dir6");
 
+	// make sure we can work with ../..
+	has_errors += chdir2("../../dir5");
+
 	printf("\n");
 
 	// print test success in green errors in red
