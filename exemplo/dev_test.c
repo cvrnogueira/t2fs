@@ -7,14 +7,13 @@
 #define NAME_SIZE 4096
 
 int main() {
-	printf("\n\n");
 
 	// printing test header warning in blue
-	printf("\033[22;34m==============================================================================\n");
+	printf("\033[22;34m===============================================\n");
 
 	printf("EXECUTING DEVELOPMENT TESTS\n[TEST OUTPUT ERROR = 1 SUCCESS = 0]\n");
 	
-	printf("==============================================================================\n\n");
+	printf("===============================================\n");
 
 	// flag to check number of errors during test execution
 	int has_errors = 0; 
@@ -100,14 +99,14 @@ int main() {
 	// make sure getcwd2 matches with current directory
 	has_errors += strcmp(name, "/dir5/dir6");
 
-	printf("\n\n");
+	printf("\n");
 
 	// print test success in green errors in red
 	if (has_errors == 0) { printf("\033[22;32mTEST EXECUTION SUCCESS\n"); }
 	else { printf("\033[22;31mTEST EXECUTION FAILED\n"); }
 
 	// clears color buffer
-	printf("\033[0m\n\n");
+	printf("\033[0m");
 
 	free(name);
 

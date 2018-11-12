@@ -150,6 +150,16 @@ DWORD curr_data_cluster(void);
 DWORD lookup_cont_record_by_type(DWORD cluster, BYTE type);
 
 /**
+ * Lookup record descriptor by its cluster number.
+ *
+ * param cluster - logical cluster number
+ * param record  - if matched then this variable will store record found during lookup
+ *
+ * returns - TRUE if found FALSE otherwise.
+**/
+int lookup_descriptor_by_cluster(DWORD cluster, Record *record);
+
+/**
  * Converts a logical cluster number to sector number in data section.
  *
  * returns - sector number.
@@ -174,8 +184,15 @@ int does_name_exists(char *name);
  *  
  *  tail -> /home/aluno/sisop 
  *  head -> t2fs
+ * 
+ * on error - returns -1 if name does not exists or 0 if it exists.
 **/
-void path_from_name(char *name, Path *result);
+int path_from_name(char *name, Path *result);
+
+/**
+ * Prepend str2 in str1.
+**/
+void str_prepend(char *str1, char *str2);
 
 /**
  * Physical cluster size calculated by sector per cluster from superblock.
@@ -206,6 +223,14 @@ DWORD fat_phys_to_log(DWORD psector);
 **/
 
 DWORD phys_fat_first_fit(void);
+
+/*
+ *  Refresh in-memmory fat table.
+ *
+ * This function is declared here because is not supposed 
+ * to be accessed from outside.
+*/
+int set_local_fat();
 
 /**
  * Initialize curr_dir position to data sector after root sectors.
