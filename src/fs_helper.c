@@ -486,7 +486,6 @@ void path_from_name(char *name, Path *result) {
 
     // validate name length
     if (name_len <= 0) {
-        printf("error - parameter name length cannot be lower or equal than zero\n");
         return ERROR;
     }
 
@@ -601,6 +600,15 @@ void path_from_name(char *name, Path *result) {
     strncpy(result->both, both, strlen(both) + 1);
 }
 
+
+/**
+ * Lookup record descriptor by its cluster number.
+ *
+ * param cluster - logical cluster number
+ * param record  - if matched then this variable will store record found during lookup
+ *
+ * returns - TRUE if found FALSE otherwise.
+**/
 int lookup_descriptor_by_cluster(DWORD cluster, Record *record) {
     // find parent directory by .. logical reference
     Record parent_dir;
@@ -786,7 +794,6 @@ int save_as_opened(Record record, char* path) {
     }
     
     return ERROR;
-    
 }
 
 
