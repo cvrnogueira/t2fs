@@ -219,8 +219,8 @@ int read2 (FILE2 handle, char *buffer, int size) {
 
 	// get the file from the opened list
 	Record file = opened_files[handle].file; 
-    //printf("\nTENHO %i CLUSTERs", file.clustersFileSize);
-	int current_pointer = opened_files[handle].current_pointer;
+    
+    int current_pointer = opened_files[handle].current_pointer;
 	
 	// creates a buffer to read the content
 	unsigned char content[file.clustersFileSize * SECTOR_SIZE * superblock.SectorsPerCluster];
@@ -241,8 +241,7 @@ int read2 (FILE2 handle, char *buffer, int size) {
 
 	// copy the read content to the buffer
 	memcpy(buffer, &content[current_pointer], size);
-    //printf("\nBUFFER HAS %s", buffer);
-
+    
 	// increases the current pointer
 	opened_files[handle].current_pointer += size;
 
@@ -424,18 +423,12 @@ int mkdir2 (char *pathname) {
     // current name exists in disk
     // then return an error
     if (!does_name_exists(path->tail)) {
-        printf("mkdir2 error - path doesnt exist\n");
-        printf("mkdir2 error - directory name = %s\n\n", path->tail);
-        
         return ERROR;
     }
 
     // current name exists in disk so we should
     // return an error
     if (does_name_exists(path->both)) {
-        printf("mkdir2 error - file or directory with this name already exists\n");
-        printf("mkdir2 error - directory name = %s\n\n", path->both);
-
         return ERROR;
     }
 
@@ -450,8 +443,6 @@ int mkdir2 (char *pathname) {
 
     // something bad happened, disk may be corrupted
     if (can_read_write != SUCCESS) {
-        printf("mkdir2 error - unable to read from sector\n");
-
         return ERROR;
     }
 
@@ -570,9 +561,6 @@ int rmdir2 (char *pathname) {
 
     // return error if parent path does not exists
     if (!does_name_exists(path->both)) {
-        printf("rmdir2 error - directory doesnt exists\n");
-        printf("rmdir2 error - directory name = %s\n\n", path->both);
-
         return ERROR;
     }
 
@@ -586,9 +574,6 @@ int rmdir2 (char *pathname) {
 
     // Check if this record is a trully directory
     if (child_dir.TypeVal != TYPEVAL_DIRETORIO) {
-        printf("rmdir2 error - this is not a directory\n");
-        printf("rmdir2 error - directory name = %s\n\n", path->both);
-
         return ERROR;
     }
 
@@ -615,8 +600,6 @@ int rmdir2 (char *pathname) {
         // if not . or .. then we must abort since we cannot
         // remove non-empty folders
         if (!is_parent_ref && !is_local_ref && tmp_record.TypeVal != TYPEVAL_INVALIDO) {
-            printf("rmdir2 error - directory [%s] is not empty, entry [%s] was found\n", path->both, tmp_record.name);
-
             return ERROR;
         }
 
@@ -659,9 +642,6 @@ int rmdir2 (char *pathname) {
 
     // clear fat entry of child dir
     if (set_value_to_fat(child_dir.firstCluster, FREE_CLUSTER) != SUCCESS) {
-        printf("rmdir2 error - unable to free fat\n");
-        printf("rmdir2 error - directory name = %s\n\n", path->both);
-
         return ERROR;
     }
 
@@ -696,8 +676,6 @@ int chdir2 (char *pathname) {
     // current name exists in disk
     // then return an error
     if (!valid) {
-        printf("error - path doesnt exist\n");
-        
         return ERROR;
     }
 
@@ -731,8 +709,6 @@ int getcwd2 (char *name, int size) {
     // name must be equal or greater than 2 since we must fill it with
     // atleast a slash and a string terminator character '\0'
     if (size < 2) {
-        printf("getcwd2 error - size must be greater than 1 since we will be atleast in / directory\n");
-
         return ERROR;
     }
 
@@ -772,8 +748,15 @@ int getcwd2 (char *name, int size) {
         }
     }
 
+    // store curr_name length
     int curr_name_len = strlen(curr_name);
 
+    // curr_name legth cannot be greater than size parameter
+    if (curr_name_len > size) {
+        return ERROR;
+    }
+
+    // store curr_name in name parameter
     strncpy(name, &curr_name, curr_name_len);
 
     return SUCCESS;
