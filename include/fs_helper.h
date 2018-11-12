@@ -220,18 +220,18 @@ int initialize_curr_dir(Superblock *superblock);
 int initialize_superblock(void);
 
 /**
- * Receives a cluster and a result buffer
+ * Read logical cluster and saves its content to the result buffer
  *
- * Saves the content of the cluster on the result buffer
+ * on error - returns ERROR if cant read from cluster otherwise SUCCESS.
 **/
-void read_cluster(int cluster, unsigned char *result);
+int read_cluster(int cluster, unsigned char *result);
 
 /**
- * Receives a cluster and a content buffer
+ * Writes content to logical cluster
  *
- * Saves the content of the buffer on the cluster
+ * on error - returns ERROR if cant write to cluster otherwise SUCCESS.
 **/
-void write_on_cluster(int cluster, unsigned char *content);
+int write_cluster(int cluster, unsigned char *content);
 
 /**
  * Save a record on the list of opened files

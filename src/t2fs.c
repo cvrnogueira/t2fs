@@ -42,7 +42,8 @@ FILE2 create2 (char *filename) {
     
     // buffer to read the content of parent dir cluster
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
-    read_cluster(parent_dir.firstCluster, content);
+    
+    if (read_cluster(parent_dir.firstCluster, content) != SUCCESS) return ERROR;
 
     int i;
 
@@ -67,8 +68,10 @@ FILE2 create2 (char *filename) {
         } else {
             // copy the content of file to the actual position on cluster
             memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
+            
             // write the modified cluster (with the new file) 
-            write_on_cluster(parent_dir.firstCluster, content);
+            write_cluster(parent_dir.firstCluster, content);
+            
             // doesn't need to iterate anymore
             able_to_write = TRUE;
             
@@ -120,7 +123,7 @@ int delete2 (char *filename) {
     
     // buffer to read the content of parent dir cluster
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
-    read_cluster(parent_dir.firstCluster, content);
+    if (read_cluster(parent_dir.firstCluster, content) != SUCCESS) return ERROR;
 
     int i;
 
@@ -138,8 +141,9 @@ int delete2 (char *filename) {
             file.TypeVal = TYPEVAL_INVALIDO;
 
             memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
+            
             // write the modified cluster (without the file) 
-            write_on_cluster(parent_dir.firstCluster, content);
+            write_cluster(parent_dir.firstCluster, content);
             found = TRUE;
         }
     }
@@ -229,7 +233,7 @@ int read2 (FILE2 handle, char *buffer, int size) {
 	int read_index = file.firstCluster;
 	int i;
 	for (i = 0; i < file.clustersFileSize; i++) {
-		read_cluster(read_index, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		if (read_cluster(read_index, &content[i * SECTOR_SIZE * superblock.SectorsPerCluster]) != SUCCESS) return ERROR;
 		read_index = local_fat[read_index];
 	}
 
@@ -252,9 +256,11 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	// Check if handle is inside of boundaries
 	if (handle < 0)
 		return ERROR;
-	if (handle >= MAX_OPENED_FILES)
+	
+    if (handle >= MAX_OPENED_FILES)
 		return ERROR;
-	// Check if the passed handle has a file 
+	
+    // Check if the passed handle has a file 
 	if (opened_files[handle].is_used == FALSE)
 		return ERROR;
 
@@ -292,9 +298,11 @@ int write2 (FILE2 handle, char *buffer, int size) {
 			if (new_fit != ERROR) {
 				if (set_value_to_fat(fat_last_index, new_fit) != SUCCESS)
 					return ERROR;
-				if (set_value_to_fat(new_fit, EOF) != SUCCESS)
+				
+                if (set_value_to_fat(new_fit, EOF) != SUCCESS)
 					return ERROR;
-				fat_last_index = new_fit;
+				
+                fat_last_index = new_fit;
 				file_clusters_allocated++;
 			} else {
 				break;
@@ -310,7 +318,7 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	int read_index = file.firstCluster;
 	int index;
 	for (index = 0; index < file.clustersFileSize + file_clusters_allocated; index++) {
-		read_cluster(read_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		if (read_cluster(read_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]) != SUCCESS) return ERROR;
 		read_index = local_fat[read_index];
 	}
 
@@ -319,7 +327,7 @@ int write2 (FILE2 handle, char *buffer, int size) {
 	
 	int write_index = file.firstCluster;
 	for (index = 0; index < file.clustersFileSize; index++) {
-		write_on_cluster(write_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
+		write_cluster(write_index, &content[index * SECTOR_SIZE * superblock.SectorsPerCluster]);
 		write_index = local_fat[write_index];
 	}
 
@@ -335,7 +343,7 @@ int write2 (FILE2 handle, char *buffer, int size) {
     // buffer to read the content of parent dir cluster
    
 	unsigned char parent_content[SECTOR_SIZE * superblock.SectorsPerCluster];
-    read_cluster(parent_dir.firstCluster, parent_content);
+    if (read_cluster(parent_dir.firstCluster, parent_content) != SUCCESS) return ERROR;
 
     int i;
 
@@ -352,8 +360,9 @@ int write2 (FILE2 handle, char *buffer, int size) {
 
             // save the updated file
             memcpy(&parent_content[position_on_cluster], &file, RECORD_SIZE);
+            
             // write the file with differences 
-            write_on_cluster(parent_dir.firstCluster, parent_content);
+            write_cluster(parent_dir.firstCluster, parent_content);
         }
     }
 
@@ -511,7 +520,10 @@ int mkdir2 (char *pathname) {
     DWORD l_data_free_sector = cluster_to_log_sector(p_free_sector);
 
     // read logical free data sector to cleanup buffer
-    read_sector(l_data_free_sector, buffer);
+    can_read_write = read_sector(l_data_free_sector, buffer);
+
+    // something bad happened, disk may be corrupted
+    if (can_read_write != SUCCESS) return ERROR;
     
     // create self pointer '.'
     Record self;
@@ -579,7 +591,7 @@ int rmdir2 (char *pathname) {
 
     // allocate a buffer for storing temp child cluster content
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
-    read_cluster(child_dir.firstCluster, content);
+    if (read_cluster(child_dir.firstCluster, content) != SUCCESS) return ERROR;
 
     // loop thourgh children directory to check if its empty or not
     // marking its members (only . and ..) as free entriess
@@ -616,10 +628,10 @@ int rmdir2 (char *pathname) {
     }
 
     // write back to disk all free entries
-    write_on_cluster(child_dir.firstCluster, content);
+    write_cluster(child_dir.firstCluster, content);
 
     // read parent dir to temp buffer
-    read_cluster(parent_dir.firstCluster, content);
+    if (read_cluster(parent_dir.firstCluster, content) != SUCCESS) return ERROR;
 
     // find child entry in parent cluster and mark it as free
     for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
@@ -638,7 +650,7 @@ int rmdir2 (char *pathname) {
     }
 
     // write back to disk all free entries
-    write_on_cluster(parent_dir.firstCluster, content);
+    write_cluster(parent_dir.firstCluster, content);
 
     // clear fat entry of child dir
     if (set_value_to_fat(child_dir.firstCluster, FREE_CLUSTER) != SUCCESS) {
@@ -704,7 +716,7 @@ int getcwd2 (char *name, int size) {
 
     // allocate a buffer for storing temp child cluster content
     unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
-    read_cluster(curr_cluster, content);
+    if (read_cluster(curr_cluster, content) != SUCCESS) return ERROR;
     
     // name must be equal or greater than 2 since we must fill it with
     // atleast a slash and a string terminator character '\0'
