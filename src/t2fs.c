@@ -20,7 +20,7 @@ FILE2 create2 (char *filename) {
         return ERROR;
     }
 
-    // return error if parent path does not exists
+    // return error if parent path does not exist
     if (!does_name_exists(path->tail))
         return ERROR;
 
@@ -60,13 +60,44 @@ FILE2 create2 (char *filename) {
 
         // Just need to check for duplications if it isn't invalid
         if (tmp_record.TypeVal != TYPEVAL_INVALIDO) {
-            // Return error if the file already exists
-            if (strcmp(tmp_record.name, file.name) == 0) {
-                return ERROR;
+           
+			if (strcmp(tmp_record.name, file.name) == 0) { //if file already exists, delete the content which belongs to the original
+				int clusterCounter;
+				int cluster_to_delete = tmp_record.firstCluster;
+				for (clusterCounter = 0; clusterCounter < tmp_record.clustersFileSize; clusterCounter++) {
+					int tmp_cluster = local_fat[cluster_to_delete];
+					if (clusterCounter == 0)
+					{
+						if (set_value_to_fat(cluster_to_delete, EOF) != SUCCESS)
+							return ERROR;
+					}
+					else
+					{
+						if (set_value_to_fat(cluster_to_delete, FREE_CLUSTER) != SUCCESS)
+							return ERROR;
+					}
+							
+					cluster_to_delete = tmp_cluster;
+				}
+				file.bytesFileSize = 0;
+				file.clustersFileSize = 1;
+
+				// copy the content of file to the actual position on cluster
+				memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
+
+				// write the modified cluster (with the new file) 
+				write_cluster(parent_dir.firstCluster, content);
+
+				// doesn't need to iterate anymore
+				able_to_write = TRUE;
+
+				break;
             }
 
         // If it's invalid = it's free (ie, we can write on it)
-        } else {
+        } 
+		else 
+		{
             // copy the content of file to the actual position on cluster
             memcpy(&content[position_on_cluster], &file, RECORD_SIZE);
             
@@ -197,6 +228,25 @@ FILE2 open2 (char *filename) {
 	if (!(file.TypeVal == TYPEVAL_REGULAR || file.TypeVal == TYPEVAL_LINK))
 		// Is not a regular file or softlink
 		return ERROR;
+
+	if (file.TypeVal == TYPEVAL_LINK) //we must open the real file
+	{
+		Record* filefromlink = malloc(sizeof(Record));
+		filefromlink = findLinkRecord(file);
+		if (filefromlink == NULL)
+			return ERROR;
+		if (filefromlink->TypeVal != TYPEVAL_REGULAR)
+			return ERROR;
+		else
+		{
+			char linkpath[phys_cluster_size()];
+			strcpy(linkpath, findLinkPath(file)->both);
+			file = *filefromlink;
+			free(filefromlink);
+			return save_as_opened(file, linkpath);
+		}
+	}
+	
 
     // release resources for path
     free(path);
@@ -599,6 +649,8 @@ int rmdir2 (char *pathname) {
         return ERROR;
     }
 
+	int isLink = 0;
+
     // get the descriptor for parent dir
     Record parent_dir;
     lookup_parent_descriptor_by_name(path->tail, &parent_dir);
@@ -607,9 +659,27 @@ int rmdir2 (char *pathname) {
     Record child_dir;    
     lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &child_dir);  
 
+	Record* temprec = NULL;
+
+
     // Check if this record is a trully directory
     if (child_dir.TypeVal != TYPEVAL_DIRETORIO) {
-        return ERROR;
+		if (child_dir.TypeVal == TYPEVAL_LINK)
+		{
+			temprec = malloc(sizeof(Record));
+			temprec = findLinkRecord(child_dir);
+			if (temprec == NULL)
+				return ERROR;
+			if (temprec->TypeVal != TYPEVAL_DIRETORIO)
+				return ERROR;
+
+			path = findLinkPath(child_dir);
+			lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+			isLink = 1;
+			child_dir = *temprec;
+		}
+		else
+			return ERROR;
     }
 
     // allocate a buffer for storing temp child cluster content
@@ -680,6 +750,9 @@ int rmdir2 (char *pathname) {
         return ERROR;
     }
 
+	if (isLink)
+		free(temprec);
+
     return SUCCESS;
 }
 
@@ -690,45 +763,82 @@ int rmdir2 (char *pathname) {
  * 
  * returns - SUCCESS if directory was changed FALSE otherwise.
 **/
-int chdir2 (char *pathname) {
-    // if pathname is only slash then we dont need to worry
-    // about extracting path we can just set curr_dir to
-    // root dir cluster
-    if (strcmp(pathname, "/") == 0) {
-        curr_dir = cluster_to_log_sector(superblock.RootDirCluster);
+int chdir2(char *pathname) {
+	// if pathname is only slash then we dont need to worry
+	// about extracting path we can just set curr_dir to
+	// root dir cluster
 
-        return SUCCESS;
-    }
+	if (strcmp(pathname, "/") == 0) {
+		curr_dir = cluster_to_log_sector(superblock.RootDirCluster);
 
-    // extract path head and tail
-    Path *path = malloc(sizeof(Path));
-    if (path_from_name(pathname, path) != SUCCESS) {
-        free(path);
-        return ERROR;
-    }
+		return SUCCESS;
+	}
 
-    // check if path exists
-    int valid = does_name_exists(path->both);
+	// extract path head and tail
+	Path *path = malloc(sizeof(Path));
+	if (path_from_name(pathname, path) != SUCCESS) {
+		free(path);
+		return ERROR;
+	}
 
-    // unable to locate parent path in disk or
-    // current name exists in disk
-    // then return an error
-    if (!valid) {
-        return ERROR;
-    }
 
-    // find parent directory by tail
-    Record dir;
-    lookup_parent_descriptor_by_name(path->both, &dir);
 
-    // set current directory to path already found
-    curr_dir = cluster_to_log_sector(dir.firstCluster);
+	// check if path exist
+	int valid = does_name_exists(path->both);
 
-    // free path pointer from memmory 
-    free(path);
+	// unable to locate parent path in disk or
+	// current name exists in disk
+	// then return an error
+	if (!valid) {
+		return ERROR;
+	}
 
-    return SUCCESS;
+	// find parent directory by tail
+	Record dir;
+	lookup_parent_descriptor_by_name(path->tail, &dir);
+
+	Record file;
+	lookup_descriptor_by_name(dir.firstCluster, path->head, &file);
+
+	if (file.TypeVal == TYPEVAL_LINK)
+	{
+
+		Path* pathfromlink = malloc(sizeof(Path));
+		pathfromlink = findLinkPath(file);
+		lookup_parent_descriptor_by_name(pathfromlink->both, &dir);
+		free(pathfromlink);
+
+		// set current directory to path already found
+		curr_dir = cluster_to_log_sector(dir.firstCluster);
+
+		// free path pointer from memmory 
+		free(path);
+
+		return SUCCESS;
+
+	}
+
+	else
+	{
+		// find parent directory by tail
+		lookup_parent_descriptor_by_name(path->both, &dir);
+
+		// set current directory to path already found
+		curr_dir = cluster_to_log_sector(dir.firstCluster);
+
+		// free path pointer from memmory 
+		free(path);
+
+		return SUCCESS;
+	}
+
+
+
 }
+
+
+
+
 
 int getcwd2 (char *name, int size) {
     // allocate name array that we will return at end
@@ -799,21 +909,305 @@ int getcwd2 (char *name, int size) {
 }
 
 DIR2 opendir2 (char *pathname) {
-    return (0);
+	// extract path head and tail
+	Path *path = malloc(sizeof(Path));
+	path_from_name(pathname, path);
+
+	// return error if parent path does not exists
+	if (!does_name_exists(path->tail))
+		// path does not exists
+		return ERROR;
+
+	// get the descriptor for parent folder
+	Record parent_dir;
+	lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+	// find the to-be-deleted file inside of parent dir
+	Record dirdesc;
+	if (!lookup_descriptor_by_name(parent_dir.firstCluster, path->head, &dirdesc))
+		// file does not exists
+		return ERROR;
+	if (!(dirdesc.TypeVal == TYPEVAL_DIRETORIO || dirdesc.TypeVal == TYPEVAL_LINK))
+	{
+		// It's not a directory or a softlink to one
+		free(path);
+		return ERROR;
+
+	}
+
+
+
+	if (dirdesc.TypeVal == TYPEVAL_LINK) //we must open the real file
+	{
+		Record* filefromlink = malloc(sizeof(Record));
+		filefromlink = findLinkRecord(dirdesc);
+		if (filefromlink == NULL)
+			return ERROR;
+
+		if (filefromlink->TypeVal != TYPEVAL_DIRETORIO)
+			return ERROR;
+		else
+		{
+			char linkpath[phys_cluster_size()];
+			strcpy(linkpath, findLinkPath(dirdesc)->both);
+			dirdesc = *filefromlink;
+			free(filefromlink);
+			return save_as_opened_dir(dirdesc, linkpath);
+		}
+	}
+
+
+	// if possible, save as opened dir
+	// otherwise, returns an error
+	return save_as_opened_dir(dirdesc, pathname);
 }
 
-int readdir2 (DIR2 handle, DIRENT2 *dentry) {
-    return SUCCESS;
+int readdir2(DIR2 handle, DIRENT2 *dentry) {
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_DIRS)
+		return ERROR;
+	// Check if the passed handle has a dir
+	if (opened_dirs[handle].is_used == FALSE)
+		return ERROR;
+
+	//get dir
+	Record dir = opened_dirs[handle].record;
+
+
+
+	const int bufferSize = phys_cluster_size();
+	// creates a buffer to read the content
+	unsigned char result[bufferSize];
+	int address = opened_dirs[handle].current_pointer;
+	
+	struct t2fs_record descriptor;
+	read_cluster(dir.firstCluster, result);
+	if ((address >= (phys_cluster_size() - 64)) || address < 0) //if address is higher than the last possible entry, we must return an error.
+		return ERROR;
+
+	address = findValidEntry(dir, address); //find the next valid entry
+	if (address == ERROR)
+	{
+		return ERROR;
+	}
+	
+	memcpy(&descriptor, &result[address], sizeof(descriptor));
+
+	if (descriptor.TypeVal == TYPEVAL_DIRETORIO || descriptor.TypeVal == TYPEVAL_LINK || descriptor.TypeVal == TYPEVAL_REGULAR)
+		{
+		dentry->fileSize = descriptor.bytesFileSize;
+		dentry->fileType = descriptor.TypeVal; 
+		strcpy(dentry->name, descriptor.name);
+		address = findValidEntry(dir, address);
+		opened_dirs[handle].current_pointer = address;
+		return SUCCESS;
+		}
+	else
+		return ERROR;
 }
 
 int closedir2 (DIR2 handle) {
-    return SUCCESS;
-}
+		// Check if handle is inside of boundaries
+		if (handle < 0)
+			return ERROR;
+		if (handle >= MAX_OPENED_DIRS)
+			return ERROR;
+		// Check if the passed handle has a dir
+		if (opened_dirs[handle].is_used == FALSE)
+			return ERROR;
+		opened_dirs[handle].is_used = FALSE;
+		unusedDirHandles++;
+		num_opened_dirs--;
+		return SUCCESS;
+	}
+
+
 
 int ln2(char *linkname, char *filename) {
-    return SUCCESS;
+
+	if (sizeof(filename) >= phys_cluster_size())//if path size bigger than a cluster, we must return an error.
+		return ERROR;
+
+	// extract path head and tail
+	Path *linkpath = malloc(sizeof(Path));
+	if (path_from_name(linkname, linkpath) != SUCCESS) {
+		free(linkpath);
+		return ERROR;
+	}
+
+	// extract path head and tail
+	Path *filepath = malloc(sizeof(Path));
+	if (path_from_name(filename, filepath) != SUCCESS) {
+		free(filepath);
+		return ERROR;
+	}
+
+	// return error if file does not exist.
+	if (!does_name_exists(filepath->both))
+		return ERROR;
+
+	// return error if parent path does not exist
+	if (!does_name_exists(linkpath->tail))
+		return ERROR;
+
+	// get the descriptor for parent folder
+	Record parent_dir;
+	lookup_parent_descriptor_by_name(linkpath->tail, &parent_dir);
+
+	// find first free fat physical sector entry
+	int p_free_sector = phys_fat_first_fit();
+
+	Record link;
+	link.TypeVal = TYPEVAL_LINK;
+	link.bytesFileSize = phys_cluster_size();
+	link.clustersFileSize = 1;
+	strncpy(link.name, linkpath->head, FILE_NAME_SIZE);
+
+	link.firstCluster = p_free_sector;
+
+
+	unsigned char linkContent[link.bytesFileSize];
+
+	memcpy(linkContent, filepath->both, link.bytesFileSize);
+
+
+	// buffer to read the content of parent dir cluster
+	unsigned char content[SECTOR_SIZE * superblock.SectorsPerCluster];
+
+	if (read_cluster(parent_dir.firstCluster, content) != SUCCESS) return ERROR;
+
+	int i;
+
+	// flag to check if a space to write was found
+	int able_to_write = FALSE;
+
+	Record tmp_record;
+	for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+		int position_on_cluster = i * RECORD_SIZE;
+
+		// Copy the current record do parent dir to tmp_record
+		memcpy(&tmp_record, &content[position_on_cluster], RECORD_SIZE);
+
+		// Just need to check for duplications if it isn't invalid
+		if (tmp_record.TypeVal != TYPEVAL_INVALIDO) {
+			if (strcmp(tmp_record.name, link.name) == 0)  //if file already exists, delete the content which belongs to the original
+			{
+				return ERROR;
+			}
+		
+			// If it's invalid = it's free (ie, we can write on it)
+		}
+		else {
+			// copy the content of file to the actual position on cluster
+			memcpy(&content[position_on_cluster], &link, RECORD_SIZE);
+
+			// write the modified cluster (with the new file) 
+			write_cluster(parent_dir.firstCluster, content);
+
+			// doesn't need to iterate anymore
+			able_to_write = TRUE;
+		
+			break;
+		}
+	}
+
+
+
+	// parent directory is full
+	if (able_to_write == FALSE)
+		return ERROR;
+
+	write_cluster(link.firstCluster, linkContent);
+
+	// sets EOF to the found free index of FAT
+	if (set_value_to_fat(p_free_sector, EOF) != SUCCESS)
+		return ERROR;
+
+	// release resources for path
+	free(linkpath);
+	free(filepath);
+
+	return SUCCESS;
+
 }
 
+
+
 int truncate2 (FILE2 handle) {
+	// Check if handle is inside of boundaries
+	if (handle < 0)
+		return ERROR;
+	if (handle >= MAX_OPENED_FILES)
+		return ERROR;
+	// Check if the passed handle has a file 
+	if (opened_files[handle].is_used == FALSE)
+		return ERROR;
+
+	// get the file from the opened list
+	Record file = opened_files[handle].file;
+	int current_pointer = opened_files[handle].current_pointer;
+	unsigned int cluster_size = phys_cluster_size();
+	int newSize = current_pointer - 1;
+
+	// total number of cluster = file size in bytes / cluster size in bytes
+	int newFileClusters = ceil(((float)newSize) / cluster_size);
+	
+	if (current_pointer == 0)
+	{ 
+		newSize = 0;
+		newFileClusters = 1;
+	}
+
+	// free the FAT entries that the file used to use
+	int clusterCounter;
+	int cluster_to_delete = file.firstCluster;
+	for (clusterCounter = 0; clusterCounter < file.clustersFileSize; clusterCounter++) {
+		int tmp_cluster = local_fat[cluster_to_delete];
+		if(clusterCounter >= newFileClusters)
+			if (set_value_to_fat(cluster_to_delete, FREE_CLUSTER) != SUCCESS)
+				return ERROR;
+			if(clusterCounter == newFileClusters -1)
+				if (set_value_to_fat(cluster_to_delete, EOF) != SUCCESS)
+					return ERROR;
+		cluster_to_delete = tmp_cluster;
+	}
+	file.bytesFileSize = newSize;
+	file.clustersFileSize = newFileClusters;
+
+	
+	Path *path = malloc(sizeof(Path));
+	if (path_from_name(opened_files[handle].path, path) != SUCCESS) {
+		free(path);
+		return ERROR;
+	}
+
+	// get the descriptor for parent folder
+	Record parent_dir;
+	lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+	// Here we update the entry of the file on the parent directory
+// buffer to read the content of parent dir cluster
+	unsigned char parent_content[SECTOR_SIZE * superblock.SectorsPerCluster];
+	if (read_cluster(parent_dir.firstCluster, parent_content) != SUCCESS) return ERROR;
+
+	int i;
+
+	Record tmp_record;
+
+	for (i = 0; i < records_per_sector() * superblock.SectorsPerCluster; i++) {
+		int position_on_cluster = i * RECORD_SIZE;
+		// Copy the current record do parent dir to tmp_record
+		memcpy(&tmp_record, &parent_content[position_on_cluster], RECORD_SIZE);
+		if (strcmp(tmp_record.name, file.name) == 0) {
+			// save the updated file
+			memcpy(&parent_content[position_on_cluster], &file, RECORD_SIZE);
+
+			// write the file with differences 
+			write_cluster(parent_dir.firstCluster, parent_content);
+		}
+	}
+
     return SUCCESS;
 }

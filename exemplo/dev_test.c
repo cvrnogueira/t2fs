@@ -1,4 +1,5 @@
 #include "t2fs.h"
+#include "fs_helper.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -12,11 +13,11 @@ int main() {
 	printf("\033[22;34m===============================================\n");
 
 	printf("EXECUTING DEVELOPMENT TESTS\n[TEST OUTPUT ERROR = 1 SUCCESS = 0]\n");
-	
+
 	printf("===============================================\n");
 
 	// flag to check number of errors during test execution
-	int has_errors = 0; 
+	int has_errors = 0;
 
 	// clears color buffer
 	printf("\033[0m");
@@ -36,14 +37,45 @@ int main() {
 	has_errors += mkdir2("dir4");
 	has_errors += mkdir2("dir4/dir5");
 
+	has_errors += chdir2("lntodir45");
+
+	char* name = malloc(sizeof(char) * NAME_SIZE);
+
+
+	// clear name
+	memset(name, 0x00, NAME_SIZE);
+
+	has_errors += getcwd2(name, NAME_SIZE);
+	// make sure getcwd2 matches with current directory
+	has_errors += strcmp(name, "/dir4/dir5");
+	// going back to root
+	has_errors += chdir2("..");
+	//go back to root 
+	has_errors += chdir2("..");
+	has_errors += rmdir2("lntodir45");
+	
+
+	print_disk();
+	
+	DIR2 dir = opendir2("dir5");
+
+	DIRENT2 entry;
+	has_errors += readdir2(dir, &entry);
+
+	has_errors += strcmp(entry.name,"dir6");
+
+	has_errors += closedir2(dir);
+
+
+
 	// try to remove a non-empty dir and sum 1 to its result since
 	// it will be an error
-	has_errors += rmdir2("dir4") + 1;
+	//has_errors += rmdir2("dir4") + 1;
 
 	// delete children and parent to let disk be on its normal
 	// state again
-	has_errors += rmdir2("dir4/dir5");
-	has_errors += rmdir2("dir4");
+	//has_errors += rmdir2("dir4/dir5");
+	//has_errors += rmdir2("dir4");
 
 	// change current directory to dir1
 	has_errors += chdir2("dir1");
@@ -54,12 +86,10 @@ int main() {
 	// go back to root 
 	has_errors += chdir2("..");
 
-	// alocate name to use in getcwd2
-	char* name = malloc(sizeof(char) * NAME_SIZE);
 
 	// get current working directory as string
 	has_errors += getcwd2(name, NAME_SIZE);
-	
+
 	// since we are in root dir make sure getcwd2 returned / as its result
 	has_errors += strcmp(name, "/");
 
@@ -71,7 +101,7 @@ int main() {
 
 	// get current working directory as string
 	has_errors += getcwd2(name, NAME_SIZE);
-	
+
 	// make sure getcwd2 matches with current directory
 	has_errors += strcmp(name, "/dir5/dir6/dir7/dir8");
 
@@ -101,7 +131,7 @@ int main() {
 
 	// make sure we can work with ../..
 	has_errors += chdir2("../../dir5");
-
+	
 	printf("\n");
 
 	// print test success in green errors in red
@@ -110,6 +140,7 @@ int main() {
 
 	// clears color buffer
 	printf("\033[0m");
+
 
 	free(name);
 

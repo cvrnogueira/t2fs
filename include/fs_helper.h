@@ -21,6 +21,9 @@
 // define max number of open files in file system
 #define MAX_OPENED_FILES 10
 
+//define max number of opened directories at the same time
+#define MAX_OPENED_DIRS 65536
+
 // defines a free cluster
 #define FREE_CLUSTER 0x00000000
 
@@ -76,13 +79,22 @@ typedef struct {
 	int is_used;
 	int current_pointer;
     Record  file;
-    char* path;
+	char path[MAX_PATH_SIZE];
 } OpenedFile;
 
+typedef struct {
+	int is_used;
+	int current_pointer;
+	Record  record;
+	char* path;
+} OpenedDir;
+
+
 OpenedFile opened_files[MAX_OPENED_FILES];
-
+OpenedDir opened_dirs[MAX_OPENED_DIRS];
 int num_opened_files;
-
+int num_opened_dirs;
+int unusedDirHandles;
 /***************************************************************************
 * functions
 ***************************************************************************/
@@ -264,6 +276,23 @@ int write_cluster(int cluster, unsigned char *content);
  * Returns -1 on Error; index of the opened file on Success
 **/
 int save_as_opened(Record record, char* path);
+
+
+/*
+Similar to save_as_opened, only now returning a directory handler and having a higher limit of concurrent opened dirs
+*/
+int save_as_opened_dir(Record record, char* path);
+
+
+/* Finds the next valid entry for a directory.
+returns -1 on errors; returns valid next address if viable*/
+int findValidEntry(Record record, int address);
+
+/* Finds the path pointed by link*/
+Path* findLinkPath(Record link);
+
+/* Finds the record pointed by link*/
+Record* findLinkRecord(Record link);
 
 /**
  * Save a dword on a given position of local FAT

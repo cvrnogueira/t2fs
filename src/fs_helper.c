@@ -30,6 +30,7 @@ static void initialize(void) {
 
     // sets the opened file counter to 0
     num_opened_files = 0;
+	num_opened_dirs = 0;
 
     set_local_fat();
 }
@@ -99,6 +100,21 @@ int initialize_curr_dir(Superblock *superblock) {
     curr_dir = superblock->DataSectorStart + superblock->RootDirCluster * superblock->SectorsPerCluster;
     return SUCCESS;
 }
+
+
+/**
+Initialize opened dir/files vector structs
+**/
+void initialize_opened_structs()
+{
+
+	int i;
+	for (i = 0; i < MAX_OPENED_FILES; i++)
+		opened_files[i].is_used = FALSE;
+	for (i = 0; i < MAX_OPENED_DIRS; i++)
+		opened_dirs[i].is_used = FALSE;
+}
+
 
 /**
  * Read superblock from sector zero
@@ -474,7 +490,7 @@ int path_from_name(char *name, Path *result) {
     const int name_len = strlen(name);
 
     // validate name length
-    if (name_len <= 0) {
+    if (name_len <= 0 || name_len >= MAX_PATH_SIZE) {
         return ERROR;
     }
 
@@ -776,6 +792,7 @@ int save_as_opened(Record record, char* path) {
         return ERROR;
     }
 
+
     // save the record of file in the first free position of opened_files
     int i;
     for (i = 0; i < MAX_OPENED_FILES; i++) {
@@ -790,7 +807,7 @@ int save_as_opened(Record record, char* path) {
             opened_files[i].current_pointer = 0;
             
             // set path to the record
-            opened_files[i].path = path;
+			strcpy(opened_files[i].path, path);
             
             // increase the opened files counter
             num_opened_files++;
@@ -800,6 +817,131 @@ int save_as_opened(Record record, char* path) {
     
     return ERROR;
 }
+
+
+int save_as_opened_dir(Record record, char* pathname)
+{
+
+	int i;
+	if (num_opened_dirs >= MAX_OPENED_DIRS)
+		return ERROR;
+	else
+	{
+
+		int address = findValidEntry(record, 0);
+		if (address == -1)
+			return ERROR;
+
+
+		if (unusedDirHandles) //if a handle has been freed, we have to search the array for it 
+		{
+			for (i = 0; i < MAX_OPENED_DIRS; i++)
+				if (opened_dirs[i].is_used == FALSE)
+				{
+					opened_dirs[i].record = record;
+					opened_dirs[i].is_used = TRUE;
+					strcpy(opened_dirs[i].path, pathname);
+					opened_dirs[i].current_pointer = address;
+					num_opened_dirs++;
+					unusedDirHandles--;
+					return i;
+				}
+		}
+		else //else, it's the trivial case
+		{
+			i = num_opened_dirs;
+			opened_dirs[i].record = record;
+			opened_dirs[i].is_used = TRUE;
+			opened_dirs[i].current_pointer = address;
+			opened_dirs[i].path = malloc(MAX_PATH_SIZE * sizeof(char));
+			strcpy(opened_dirs[i].path, pathname);
+			num_opened_dirs++;
+			return i;
+		}
+	}
+
+	return ERROR;
+
+}
+
+int findValidEntry(Record record, int end)
+{
+	int cluster_size = SECTOR_SIZE * superblock.SectorsPerCluster;
+	unsigned char result[cluster_size];
+	struct t2fs_record descriptor;
+	int address = end;
+	if (address >= cluster_size)
+		return ERROR;
+	if (address == ERROR)
+		return ERROR;
+	read_cluster(record.firstCluster, result);
+	// 64 = tamanho da estrutura t2fs_record
+	do
+	{
+		memcpy(&descriptor, &result[address], sizeof(descriptor));
+		address += 64;
+	} while (descriptor.TypeVal == TYPEVAL_INVALIDO && address <= cluster_size);
+
+	if (address >= cluster_size)
+	{
+		address = 0;
+		do
+		{
+			memcpy(&descriptor, &result[address], sizeof(descriptor));
+			address += 64;
+		} while (descriptor.TypeVal == TYPEVAL_INVALIDO && address <= cluster_size);
+		if (address >= cluster_size)
+			return ERROR;
+		else
+			return address;
+	}
+	else
+		return address;
+
+}
+
+Record* findLinkRecord(Record link)
+{
+
+	Path* path;
+	path = malloc(sizeof(Path));
+	path = findLinkPath(link);
+	
+
+	if (path == NULL)
+		return NULL;
+
+	Record parent_dir;
+	lookup_parent_descriptor_by_name(path->tail, &parent_dir);
+
+	// find the record
+	Record* file = malloc(sizeof(Record));
+	if (!lookup_descriptor_by_name(parent_dir.firstCluster, path->head, file))
+		{ 
+		free(path);
+		return NULL;
+		}
+	else
+	{
+		free(path);
+		return file;
+	}
+}
+
+
+Path* findLinkPath(Record link)
+{
+	unsigned char* name = malloc(sizeof(char) * phys_cluster_size());
+	read_cluster(link.firstCluster, name);
+	Path* path = malloc(sizeof(Path));
+	if (path_from_name((char*)name, path) != SUCCESS) {
+		free(path);
+		return NULL;
+	}
+	return path;
+}
+
+
 
 /**
  * Helper functions to print data, fat and super blocks from disk.
