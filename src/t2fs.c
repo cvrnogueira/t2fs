@@ -983,7 +983,7 @@ int readdir2(DIR2 handle, DIRENT2 *dentry) {
 	int address = opened_dirs[handle].current_pointer;
 	
 	struct t2fs_record descriptor;
-	read_cluster(dir.firstCluster, result);
+	if (read_cluster(dir.firstCluster, result) != SUCCESS) return ERROR;
 	if ((address >= (phys_cluster_size() - 64)) || address < 0) //if address is higher than the last possible entry, we must return an error.
 		return ERROR;
 

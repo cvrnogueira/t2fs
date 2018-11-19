@@ -75,8 +75,14 @@ int set_value_to_fat(int position, DWORD value) {
     int index;
     // calculates the number of entries per sector on FAT
     int entries_per_sector = SECTOR_SIZE / FAT_ENTRY_SIZE;
+
+	if (local_fat[position] == 0xFFFFFFFE)//we have to check if the current cluster isn't a bad one
+		return ERROR;
+
     // save the value on local fat
     local_fat[position] = value;    
+
+
 
     // loop on FAT
     for(index = superblock.pFATSectorStart; index < superblock.DataSectorStart; index++) {
@@ -742,6 +748,9 @@ int read_cluster(int cluster, unsigned char *result) {
     
     int can_read_write = SUCCESS;
 
+	if (local_fat[cluster]== 0xFFFFFFFE)//testing if it is a bad block
+		return ERROR;
+
     for(sector_index = 0; sector_index < superblock.SectorsPerCluster; sector_index++) {
         can_read_write = read_sector(starting_sector + sector_index, &result[sector_index * SECTOR_SIZE]);
 
@@ -874,7 +883,7 @@ int findValidEntry(Record record, int end)
 		return ERROR;
 	if (address == ERROR)
 		return ERROR;
-	read_cluster(record.firstCluster, result);
+	if (read_cluster(record.firstCluster, result) != SUCCESS) return ERROR;
 	// 64 = tamanho da estrutura t2fs_record
 	do
 	{
@@ -932,7 +941,7 @@ Record* findLinkRecord(Record link)
 Path* findLinkPath(Record link)
 {
 	unsigned char* name = malloc(sizeof(char) * phys_cluster_size());
-	read_cluster(link.firstCluster, name);
+	if (read_cluster(link.firstCluster, name) != SUCCESS) return NULL;
 	Path* path = malloc(sizeof(Path));
 	if (path_from_name((char*)name, path) != SUCCESS) {
 		free(path);
